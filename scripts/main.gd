@@ -24,6 +24,8 @@ const InteractableScript := preload("res://scripts/interactable.gd")
 const HandPhoneScript := preload("res://scripts/hand_phone.gd")
 const FlameLightScript := preload("res://scripts/flame_light.gd")
 const Settings := preload("res://scripts/settings.gd")
+# Куда могут улететь вещи из инвентаря, если их достать во дворе: весь Мир 1 с запасом.
+const LEVEL_AREA := AABB(Vector3(-300, -20, -300), Vector3(600, 120, 600))
 const STONE_SHADER := preload("res://shaders/stone.gdshader")
 const WINDOW_SHADER := preload("res://shaders/window.gdshader")
 const FILM_SHADER := preload("res://shaders/film.gdshader")
@@ -66,6 +68,7 @@ var porch_light: OmniLight3D
 var environment: Environment
 var hall_phone: Node3D
 var hand_phone: Node3D
+var hands: Node
 var film_material: ShaderMaterial
 var sanity_meter = preload("res://scripts/sanity_meter.gd").new()
 var _sanity_hint_shown := false
@@ -117,6 +120,14 @@ func _ready() -> void:
 	ui = UIScript.new()
 	add_child(ui)
 	player.prompt_changed.connect(ui.set_prompt)
+
+	# Руки с инвентарём, который герой принёс из квартиры.
+	hands = preload("res://scripts/hands.gd").new()   # не константа: квартира уже объявляет HandsScript
+	hands.name = "Руки"
+	hands.player = player
+	hands.ui = ui
+	hands.area = LEVEL_AREA
+	add_child(hands)
 
 	hand_phone = HandPhoneScript.new()
 	hand_phone.visible = false

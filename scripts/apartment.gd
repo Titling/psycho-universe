@@ -331,6 +331,8 @@ func _leave() -> void:
 	door.enabled = false
 	player.locked = true
 	ui.set_prompt("")
+	_hands.stash_held()
 	await ui.say(D.PROLOGUE_LEAVE)
 	await ui.fade_to(1.0, 1.5)
+	_hands.pack_for_travel()
 	get_tree().change_scene_to_file(WORLD_1)

@@ -17,6 +17,7 @@ const ICON_FOV := 30.0
 
 var player: CharacterBody3D
 var ui: Node
+var area := AABB()   # границы уровня для принесённых вещей; пустые — оставить их старые границы
 var inventory = InventoryScript.new()
 var held: Node = null
 
@@ -31,6 +32,36 @@ func _ready() -> void:
 	_storage = Node3D.new()
 	_storage.name = "Вещи_в_инвентаре"
 	add_child(_storage)
+	_adopt_carried()
+
+
+# Вещи, которые герой принёс с прошлого уровня, сразу лежат в инвентаре.
+func _adopt_carried() -> void:
+	for item in InventoryScript.unpack(get_tree()):
+		if not is_instance_valid(item):
+			continue
+		_storage.add_child(item)
+		item.hands = self
+		if area.has_volume():
+			item.area = area
+		inventory.add(item)
+
+
+# Уход с уровня, шаг 1: вещь из рук убирается в инвентарь, если влезает, иначе остаётся здесь.
+func stash_held() -> void:
+	if held == null:
+		return
+	if held.pocketable and not inventory.is_full():
+		_store_held()
+	else:
+		release()
+
+
+# Уход с уровня, шаг 2, прямо перед сменой сцены: инвентарь уезжает вместе с героем.
+func pack_for_travel() -> void:
+	if held != null:
+		release()
+	inventory.pack(get_tree())
 
 
 func _unhandled_input(event: InputEvent) -> void:
