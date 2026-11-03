@@ -13,14 +13,33 @@ var _t := 0.0
 var _phase := 0.0
 var _noise := 0.0
 
+# Генераторы живут до конца игры. Аудиопоток Godot 4.3 держит на генератор голый указатель
+# и может ещё раз смешать звук после того, как плеер удалён вместе со сценой. Если генератор
+# к этому моменту освобождён, игра падает (так было при выходе из квартиры в Мир 1).
+static var _keep_alive: Array[AudioStreamGenerator] = []
+
 
 func _ready() -> void:
 	var gen := AudioStreamGenerator.new()
 	gen.mix_rate = RATE
 	gen.buffer_length = 0.15
+	_keep_alive.append(gen)
 	stream = gen
 	play()
 	_playback = get_stream_playback()
+
+
+# Плеер уходит из дерева: перестаём кормить звук до того, как сцену удалят.
+func _exit_tree() -> void:
+	_playback = null
+	stop()
+
+
+# Если плеер просто переставили к другому родителю, звук включается снова.
+func _enter_tree() -> void:
+	if is_node_ready() and _playback == null:
+		play()
+		_playback = get_stream_playback()
 
 
 func set_mode(new_mode: String) -> void:
