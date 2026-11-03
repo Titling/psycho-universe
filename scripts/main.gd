@@ -18,7 +18,18 @@ const CAR_MODELS := [
 	preload("res://models/kenney_cars/hatchback-sports.glb"),
 	preload("res://models/kenney_cars/delivery.glb"),
 ]
-const CAR_LENGTH := 4.2
+# Настоящие габариты машин, м: длина, ширина, высота. Модели Kenney игрушечные: короткие,
+# широкие и высокие, с огромными колёсами. Кузов растягивается до этих размеров, а колёса
+# остаются круглыми и получают обычный радиус.
+const CAR_SIZES := [
+	Vector3(4.4, 1.72, 1.42),   # седан
+	Vector3(4.5, 1.82, 1.72),   # внедорожник
+	Vector3(4.0, 1.68, 1.36),   # хэтчбек
+	Vector3(5.0, 1.95, 2.05),   # фургон
+]
+const WHEEL_RADIUS := 0.31
+const KENNEY_WHEEL_RADIUS := 0.3
+const CAR_SAG := 0.04   # старые машины стоят на подспущенных колёсах
 const WallShadowScript := preload("res://scripts/wall_shadow.gd")
 const InteractableScript := preload("res://scripts/interactable.gd")
 const HandPhoneScript := preload("res://scripts/hand_phone.gd")
@@ -737,32 +748,80 @@ func _socket(pos: Vector3, yaw: float) -> void:
 func _car(pos: Vector3, yaw: float, tint: Color) -> void:
 	# ржавый кузов, от краски остался только оттенок
 	var color := tint.lerp(Color(0.5, 0.48, 0.45), 0.6)
-	var car: Node3D = CAR_MODELS[hash(pos) % CAR_MODELS.size()].instantiate()
+	var index: int = hash(pos) % CAR_MODELS.size()
+	var target: Vector3 = CAR_SIZES[index]
+	var car: Node3D = CAR_MODELS[index].instantiate()
 	nav_region.add_child(car)
-	var meshes := car.find_children("*", "MeshInstance3D", true, false)
-	var bounds := AABB()
-	for i in meshes.size():
-		var box: AABB = meshes[i].global_transform * meshes[i].get_aabb()
-		bounds = box if i == 0 else bounds.merge(box)
-		for s in meshes[i].mesh.get_surface_count():
-			var paint: StandardMaterial3D = meshes[i].mesh.surface_get_material(s).duplicate()
+	for mesh in car.find_children("*", "MeshInstance3D", true, false):
+		for s in mesh.mesh.get_surface_count():
+			var paint: StandardMaterial3D = mesh.mesh.surface_get_material(s).duplicate()
 			paint.albedo_color = color
 			paint.roughness = 1.0
 			paint.metallic = 0.0
-			meshes[i].set_surface_override_material(s, paint)
-	car.scale = Vector3.ONE * CAR_LENGTH / maxf(bounds.size.x, bounds.size.z)
+			mesh.set_surface_override_material(s, paint)
+	_fit_car(car, target)
 	car.position = pos
-	car.rotation.y = yaw
+	car.rotation = Vector3(0, yaw, (hash(pos) % 7 - 3) * 0.004)   # чуть завален на одно колесо, одинаково в окне и во дворе
+	car.add_child(_contact_shadow(target))
 
 	var body := StaticBody3D.new()
 	var shape := CollisionShape3D.new()
 	var box_shape := BoxShape3D.new()
-	box_shape.size = Vector3(1.8, 1.5, CAR_LENGTH)
+	box_shape.size = target
 	shape.shape = box_shape
 	body.add_child(shape)
-	body.position = pos + Vector3(0, 0.75, 0)
+	body.position = pos + Vector3(0, target.y / 2.0, 0)
 	body.rotation.y = yaw
 	nav_region.add_child(body)
+
+
+# Кузов растягивается до настоящих габаритов отдельно по осям, колёса — одинаково по всем
+# осям, чтобы остались круглыми, и встают в те же арки.
+func _fit_car(car: Node3D, target: Vector3) -> void:
+	var body: MeshInstance3D = null
+	var wheels: Array[MeshInstance3D] = []
+	for child in car.get_children():
+		if child is MeshInstance3D:
+			if String(child.name).begins_with("wheel"):
+				wheels.append(child)
+			elif String(child.name) == "body":
+				body = child
+	if body == null:
+		return
+	var box: AABB = body.get_aabb()
+	var wheel_scale := WHEEL_RADIUS / KENNEY_WHEEL_RADIUS
+	var bottom: float = (body.position.y + box.position.y) * wheel_scale - CAR_SAG
+	var stretch := Vector3(target.x / box.size.x, (target.y - bottom) / box.size.y, target.z / box.size.z)
+	body.scale = stretch
+	body.position = Vector3(body.position.x * stretch.x, bottom - box.position.y * stretch.y, body.position.z * stretch.z)
+	for wheel in wheels:
+		wheel.scale = Vector3.ONE * wheel_scale
+		wheel.position = Vector3(wheel.position.x * stretch.x, WHEEL_RADIUS - CAR_SAG, wheel.position.z * stretch.z)
+
+
+# Тёмное пятно под машиной: теней на улице нет, и без него машина висит над асфальтом.
+func _contact_shadow(size: Vector3) -> MeshInstance3D:
+	var quad := PlaneMesh.new()
+	quad.size = Vector2(size.x + 0.5, size.z + 0.7)
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0, 0, 0, 0.85))
+	gradient.set_color(1, Color(0, 0, 0, 0.0))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_texture = texture
+	var blob := MeshInstance3D.new()
+	blob.name = "Тень_под_машиной"
+	blob.mesh = quad
+	blob.material_override = material
+	blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	blob.position.y = 0.015
+	return blob
 
 
 # with_home = false нужен виду из окна: дом ГГ заслонил бы квартиру.
