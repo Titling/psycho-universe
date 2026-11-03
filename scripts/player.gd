@@ -45,10 +45,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not locked:
-		rotate_y(-event.relative.x * MOUSE_SENS)
-		camera.rotation.x = clampf(camera.rotation.x - event.relative.y * MOUSE_SENS, -1.4, 1.4)
-	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		# Чувствительность настраивается в меню паузы (Esc), см. scripts/settings.gd.
+		var sens := MOUSE_SENS * Settings.mouse_sensitivity
+		rotate_y(-event.relative.x * sens)
+		camera.rotation.x = clampf(camera.rotation.x - event.relative.y * sens, -1.4, 1.4)
 	elif event is InputEventMouseButton and event.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	elif event.is_action_pressed("interact") and not locked and _target != null:
