@@ -188,12 +188,12 @@ func _comment(text: String) -> void:
 
 func _start() -> void:
 	player.locked = true
-	await get_tree().create_timer(0.8).timeout
+	await get_tree().create_timer(0.8, false).timeout
 	await ui.say(D.PROLOGUE)
 	ui.show_title("МИР 1. ОДИНОЧЕСТВО\nОкраина города")
 	await ui.fade_to(0.0, 3.0)
 	player.locked = false
-	ui.show_hint("WASD — идти   Shift — бежать   E — действие   Esc — показать курсор")
+	ui.show_hint("WASD — идти   Shift — бежать   E — действие   Esc — пауза и настройки")
 	stage = "explore"
 	bench_phone.ringing = true
 
@@ -221,7 +221,7 @@ func _update_girl() -> void:
 			# Она будто телепортируется дальше по улице.
 			girl.visible = false
 			girl_index += 1
-			await get_tree().create_timer(0.5).timeout
+			await get_tree().create_timer(0.5, false).timeout
 			girl.position = GIRL_PATH[girl_index]
 			girl.visible = true
 	elif d < 3.5 and not busy:
@@ -241,7 +241,7 @@ func _dead_end() -> void:
 	shadow.paused = false
 	busy = false
 	stage = "after_dead_end"
-	await get_tree().create_timer(2.0).timeout
+	await get_tree().create_timer(2.0, false).timeout
 	_comment(D.SMS_AFTER_DEAD_END)
 
 
@@ -295,7 +295,7 @@ func _on_door() -> void:
 	player.global_position = HALL + Vector3(0, 0, 9)
 	player.rotation.y = 0.0
 	player.camera.rotation.x = 0.0
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(0.5, false).timeout
 	await ui.fade_to(0.0, 2.0)
 	await ui.say(D.MANSION.slice(0, 1))
 	player.locked = false
@@ -336,7 +336,7 @@ func _on_caught() -> void:
 	player.global_position = checkpoint
 	player.velocity = Vector3.ZERO
 	shadow.global_position = _nav_point(shadow_spawn)
-	await get_tree().create_timer(1.0).timeout
+	await get_tree().create_timer(1.0, false).timeout
 	await ui.fade_to(0.0, 1.0)
 	player.locked = false
 	shadow.paused = false

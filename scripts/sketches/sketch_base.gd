@@ -33,10 +33,10 @@ func _spawn_player(start: Vector3, yaw: float, title: String) -> void:
 
 
 func _intro(title: String) -> void:
-	await get_tree().create_timer(0.3).timeout
+	await get_tree().create_timer(0.3, false).timeout
 	ui.show_title(title)
 	await ui.fade_to(0.0, 2.0)
-	ui.show_hint("Набросок, сюжета пока нет.   WASD — идти   Shift — бежать   Esc — показать курсор")
+	ui.show_hint("Набросок, сюжета пока нет.   WASD — идти   Shift — бежать   Esc — пауза и настройки")
 
 
 # Деталь без коллизии: для мелочей, через которые не нужно ходить.
