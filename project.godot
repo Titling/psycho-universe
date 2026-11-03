@@ -14,6 +14,10 @@ config/name="Psycho Universe"
 run/main_scene="res://scenes/menu.tscn"
 config/features=PackedStringArray("4.3", "GL Compatibility")
 
+[autoload]
+
+LightLOD="*res://scripts/light_lod.gd"
+
 [display]
 
 window/size/viewport_width=1280

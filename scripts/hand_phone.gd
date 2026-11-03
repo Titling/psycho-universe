@@ -58,6 +58,7 @@ func _ready() -> void:
 	light.light_energy = 0.0
 	light.light_color = Color(0.9, 0.9, 0.86)
 	light.shadow_enabled = true
+	light.add_to_group(&"always_shadow")   # фонарик в руке тень не теряет (scripts/light_lod.gd)
 	light.position = Vector3(0, 0.06, -0.01)
 	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	hand.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
