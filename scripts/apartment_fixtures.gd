@@ -5,12 +5,15 @@ extends Node
 const InteractableScript := preload("res://scripts/interactable.gd")
 const SoundsScript := preload("res://scripts/apartment_sounds.gd")
 const D := preload("res://data/dialogues.gd")
+const POT_MODEL := preload("res://models/pot_enamel_01/pot_enamel_01_1k.gltf")
 
 const SPOUT := Vector3(5.34, 1.13, 1.05)
 const SINK_BOTTOM := 0.91
 const FRIDGE_HINGE := Vector3(5.66, 0.0, 3.06)
 const FRIDGE_OPEN_DEGREES := 105.0
 const FRIDGE_LIGHT_POS := Vector3(5.72, 0.75, 3.35)
+const SHELF_HEIGHTS := [-0.2, 0.2]   # от центра задней стенки холодильника
+const SOUP_LEVEL := 0.105          # м от дна кастрюли (сама она высотой 0.13)
 
 var root: Node3D
 var player: CharacterBody3D
@@ -102,9 +105,9 @@ func _build_fridge() -> void:
 	fridge.add_child(_fridge_glow)
 	_fridge_glow.global_position = Vector3(5.605, 0.62, 3.35)
 	# Две полки и кастрюля с тем самым супом из записки.
-	for y in [-0.2, 0.2]:
+	for y in SHELF_HEIGHTS:
 		_add_inside(Vector3(0.05, 0.015, 0.5), Vector3(0.03, y, 0), Color(0.7, 0.72, 0.7))
-	_add_inside(Vector3(0.05, 0.13, 0.2), Vector3(0.03, -0.12, 0.05), Color(0.32, 0.17, 0.12))
+	_add_soup_pot()
 
 	_fridge_light = OmniLight3D.new()
 	_fridge_light.light_color = Color(0.85, 0.92, 0.9)
@@ -132,6 +135,47 @@ func _add_inside(size: Vector3, offset: Vector3, color: Color) -> void:
 	part.material_override = material
 	part.position = offset
 	_fridge_glow.add_child(part)
+
+
+# Эмалированная кастрюля без крышки на нижней полке, суп сверху затянут плесенью.
+# Корпус холодильника сплошной, поэтому задняя половина кастрюли уходит в стенку:
+# спереди, откуда на неё смотрит игрок, этого не видно.
+func _add_soup_pot() -> void:
+	var pot: Node3D = POT_MODEL.instantiate()
+	pot.name = "Кастрюля_с_супом"
+	var lid := pot.get_node_or_null("pot_enamel_01_lid")
+	if lid:
+		lid.free()
+	for mesh in pot.find_children("*", "MeshInstance3D", true, false):
+		mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	pot.rotation.y = PI / 2.0   # ручки вдоль стенки, а не на игрока
+	pot.position = Vector3(0.02, SHELF_HEIGHTS[0] + 0.008, 0.06)
+	_fridge_glow.add_child(pot)
+
+	var surface := CylinderMesh.new()
+	surface.top_radius = 0.084
+	surface.bottom_radius = 0.084
+	surface.height = 0.004
+	surface.radial_segments = 24
+	var mould := StandardMaterial3D.new()
+	mould.albedo_color = Color(0.8, 0.82, 0.74)
+	mould.roughness = 1.0
+	var noise := NoiseTexture2D.new()
+	noise.width = 64
+	noise.height = 64
+	noise.noise = FastNoiseLite.new()
+	noise.noise.frequency = 0.09
+	noise.color_ramp = Gradient.new()
+	noise.color_ramp.set_color(0, Color(0.55, 0.38, 0.22))   # сам суп, бурый
+	noise.color_ramp.set_color(1, Color(0.9, 0.95, 0.85))    # белёсые пятна плесени
+	mould.albedo_texture = noise
+	var soup := MeshInstance3D.new()
+	soup.name = "Плесень"
+	soup.mesh = surface
+	soup.material_override = mould
+	soup.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	soup.position = Vector3(0, SOUP_LEVEL, 0)
+	pot.add_child(soup)
 
 
 func _use_fridge() -> void:
