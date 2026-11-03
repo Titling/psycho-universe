@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" load_steps=4 format=3 uid="uid://dsnp68782b4pp"]
+
+[ext_resource type="Shader" path="res://shaders/stone.gdshader" id="1_ma6vn"]
+[ext_resource type="Texture2D" uid="uid://byf5fllfouv5a" path="res://textures/dark_wood.png" id="2_2kg07"]
+[ext_resource type="Texture2D" uid="uid://cetw17vk6uroo" path="res://textures/dark_wood_n.png" id="3_imnvp"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_ma6vn")
+shader_parameter/albedo = Color(0.9, 0.9, 0.9, 1)
+shader_parameter/emission = Color(0, 0, 0, 1)
+shader_parameter/tex_scale = 1.5
+shader_parameter/normal_strength = 1.0
+shader_parameter/roughness = 0.82
+shader_parameter/vertical_grain = true
+shader_parameter/tex = ExtResource("2_2kg07")
+shader_parameter/tex_normal = ExtResource("3_imnvp")

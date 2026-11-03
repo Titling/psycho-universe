@@ -1,5 +1,6 @@
 # Звуки без файлов: генерируются прямо в коде.
-# mode: "ring" — звонок телефона, "beep" — пришло SMS, "drone" — гул Тени, "" — тишина.
+# mode: "ring" — звонок телефона, "beep" — пришло SMS, "drone" — гул Тени,
+# "ambient" — мрачный фон меню и уровней, "tick" — шорох кнопки меню, "" — тишина.
 extends AudioStreamPlayer3D
 
 const RATE := 22050.0
@@ -57,4 +58,17 @@ func _sample() -> float:
 			_phase = fmod(_phase + 47.0 / RATE, 1.0)
 			_noise = lerpf(_noise, randf() * 2.0 - 1.0, 0.05)
 			return (sin(_phase * TAU) * 0.5 + _noise * 0.5) * 0.6 * level
+		"ambient":
+			# ветер в коридорах и низкий тревожный аккорд, который то нарастает, то уходит
+			_noise = lerpf(_noise, randf() * 2.0 - 1.0, 0.02 + 0.015 * sin(_t * 0.23))
+			var wind := _noise * (0.55 + 0.45 * sin(_t * 0.31 + sin(_t * 0.11) * 2.0))
+			var swell := 0.5 + 0.5 * sin(_t * 0.17)
+			var chord := sin(_t * TAU * 55.0) + sin(_t * TAU * 58.3) * 0.7 + sin(_t * TAU * 82.4) * 0.45 * swell + sin(_t * TAU * 116.5) * 0.18 * swell
+			return (wind * 0.75 + chord * 0.1) * 0.8 * level
+		"tick":
+			if _t > 0.07:
+				mode = ""
+				return 0.0
+			_phase = fmod(_phase + 180.0 / RATE, 1.0)
+			return (sin(_phase * TAU) * 0.5 + randf_range(-0.2, 0.2)) * (1.0 - _t / 0.07) * 0.3
 	return 0.0
