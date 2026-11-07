@@ -28,6 +28,7 @@ var touched := false        # игрок брал или толкал предм
 var radius := 0.1
 var area := AABB()          # дальше этих границ предмет не улетит
 var icon: Texture2D = null
+var origin := ""            # путь в сцене квартиры: по нему вещь узнаётся в сохранении
 
 var _sound: AudioStreamPlayer3D
 var _held := false
@@ -92,6 +93,7 @@ static func _remove_static_bodies(node: Node) -> void:
 
 
 func _ready() -> void:
+	add_to_group("grabbable")
 	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
 	freeze = true
 	can_sleep = false   # засыпает он сам, заморозкой: движок усыплял предмет в воздухе у стены

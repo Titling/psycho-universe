@@ -82,6 +82,8 @@ var _room_lights: Node
 var _sounds: Node
 var _changes: Node
 var _hands: Node
+var _fixtures: Node
+var _intro_done := false
 
 
 func _ready() -> void:
@@ -119,7 +121,11 @@ func _ready() -> void:
 	_disable_small_shadows($"Ванная")
 	_disable_small_shadows($"Прихожая")
 	_disable_small_shadows($"Двери")
-	_intro_scene()
+	var saved := SaveGame.take_continue("apartment")
+	if saved.is_empty():
+		_intro_scene()
+	else:
+		_restore(saved)
 
 
 # Каждая лампа с тенью каждый кадр заново рисует всю геометрию вокруг себя, поэтому свет
@@ -172,7 +178,9 @@ func _add_grabbables() -> void:
 		var extras := []
 		for path in entry[4]:
 			extras.append(get_node(path))
-		bodies.append(GrabbableScript.wrap(get_node(entry[0]), entry[1], entry[2], entry[3], extras, _hands, APARTMENT_AREA))
+		var body = GrabbableScript.wrap(get_node(entry[0]), entry[1], entry[2], entry[3], extras, _hands, APARTMENT_AREA)
+		body.origin = entry[0]
+		bodies.append(body)
 	# Столкновения видны физике только с первого её шага.
 	await get_tree().physics_frame
 	await get_tree().physics_frame
@@ -193,6 +201,7 @@ func _setup_living_apartment() -> void:
 	fixtures.ui = ui
 	fixtures.sounds = _sounds
 	add_child(fixtures)
+	_fixtures = fixtures
 	_changes = ChangesScript.new()
 	_changes.name = "Подмены"
 	_changes.player = player
@@ -324,10 +333,13 @@ func _intro_scene() -> void:
 	await player.face_point($"Комната/Декор/Часы".global_position, 1.0)
 	await ui.say(D.PROLOGUE_CLOCK)
 	player.locked = false
-	ui.show_hint("WASD — идти   Shift — бежать   Пробел — прыжок   Ctrl — присесть   E — действие   Tab — инвентарь   Esc — пауза")
+	_intro_done = true
+	ui.show_hint("WASD — идти   Shift — бежать   Пробел — прыжок   Ctrl — присесть   E — действие   Tab — инвентарь   F5 — сохранить   Esc — пауза")
+	_save()
 
 
 func _leave() -> void:
+	_intro_done = false   # дальше сохраняется уже Мир 1
 	door.enabled = false
 	player.locked = true
 	ui.set_prompt("")
@@ -336,3 +348,51 @@ func _leave() -> void:
 	await ui.fade_to(1.0, 1.5)
 	_hands.pack_for_travel()
 	get_tree().change_scene_to_file(WORLD_1)
+
+
+# ---------------------------------------------------------------- сохранение
+
+func can_save() -> bool:
+	return _intro_done and not player.locked and not ui.talking and not get_tree().paused
+
+
+func _world_state() -> Dictionary:
+	var switches := {}
+	for room_name in _room_lights.rooms:
+		switches[room_name] = _room_lights.rooms[room_name].switched_on
+	return {
+		"world": "apartment",
+		"sanity": sanity_meter.value,
+		"switches": switches,
+		"water_on": _fixtures.water_on,
+		"fridge_open": _fixtures.fridge_open,
+		"clock_running": _changes._clock_running,
+		"player_position": player.global_position,
+		"player_yaw": player.rotation.y,
+		"camera_pitch": player.camera.rotation.x,
+	}
+
+
+# Продолжить в квартире: пролог уже был, герой стоит там, где сохранился.
+func _restore(w: Dictionary) -> void:
+	player.locked = true
+	# Вещи становятся телами и получают подставки только через пару кадров физики.
+	for i in 3:
+		await get_tree().physics_frame
+	sanity_meter.value = clampf(float(w.get("sanity", WAKE_SANITY)), 0.0, 1.0)
+	var switches: Dictionary = w.get("switches", {})
+	for room_name in switches:
+		if _room_lights.rooms.has(room_name):
+			_room_lights.set_switch(room_name, bool(switches[room_name]))
+	if w.get("water_on", false):
+		_fixtures.set_water(true)
+	if w.get("fridge_open", false):
+		_fixtures.set_fridge(true)
+	_changes._clock_running = w.get("clock_running", false)
+	_place_player(w)
+	SaveGame.apply_sections()
+	await ui.fade_to(0.0, 1.5)
+	player.locked = false
+	_intro_done = true
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	ui.show_hint("Продолжаем с сохранения.", 3.0)

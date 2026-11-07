@@ -11,6 +11,11 @@ func _process(_delta: float) -> void:
 	pass
 
 
+# Наброски миров пока не сохраняются.
+func can_save() -> bool:
+	return false
+
+
 # Общий старт: управление, окружение, фильтр.
 func _setup_sketch() -> void:
 	randomize()

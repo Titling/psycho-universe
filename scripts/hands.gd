@@ -2,6 +2,9 @@
 extends Node
 
 const InventoryScript := preload("res://scripts/inventory.gd")
+const ItemCatalog := preload("res://scripts/item_catalog.gd")
+# Границы для вещей, которые пришлось достать из сцены квартиры, если у уровня своих нет.
+const FALLBACK_AREA := AABB(Vector3(-300, -20, -300), Vector3(600, 120, 600))
 
 const HOLD_DISTANCE := 0.8
 const HOLD_DROP := -0.15     # предмет чуть ниже центра взгляда
@@ -20,6 +23,7 @@ var ui: Node
 var area := AABB()   # границы уровня для принесённых вещей; пустые — оставить их старые границы
 var inventory = InventoryScript.new()
 var held: Node = null
+var save_key := "items"   # часть сохранения, см. scripts/save_game.gd
 
 var _storage: Node3D
 var _inventory_open := false
@@ -29,6 +33,7 @@ var _turn_input := Vector2.ZERO
 
 
 func _ready() -> void:
+	add_to_group("saveable")
 	_storage = Node3D.new()
 	_storage.name = "Вещи_в_инвентаре"
 	add_child(_storage)
@@ -213,3 +218,58 @@ func _take_out(index: int) -> void:
 	item.global_position = camera.global_transform * Vector3(0, HOLD_DROP, -HOLD_DISTANCE)
 	item.set_stored(false)
 	take(item)
+
+
+# ---------------------------------------------------------------- сохранение
+
+# Что в инвентаре и где лежат вещи, которые игрок трогал. Вещь в руках считается лежащей там, где она сейчас.
+func save_state() -> Dictionary:
+	var stored := []
+	for item in inventory.items:
+		if item.origin != "":
+			stored.append(item.origin)
+	var loose := []
+	for body in get_tree().get_nodes_in_group("grabbable"):
+		if body.origin == "" or not body.touched or body in inventory.items:
+			continue
+		loose.append({"origin": body.origin, "position": body.global_position, "rotation": body.global_rotation})
+	return {"inventory": stored, "loose": loose}
+
+
+func load_state(data: Dictionary) -> void:
+	if held != null:
+		release()
+	var stored: Array = data.get("inventory", [])
+	var loose: Array = data.get("loose", [])
+	var bodies := {}
+	for body in get_tree().get_nodes_in_group("grabbable"):
+		if body.origin != "":
+			bodies[body.origin] = body
+	# Вещей из квартиры на этом уровне может не быть: их модели берутся из сцены квартиры.
+	var missing := []
+	for origin in stored:
+		if not bodies.has(origin):
+			missing.append(origin)
+	for entry in loose:
+		if not bodies.has(entry.origin):
+			missing.append(entry.origin)
+	bodies.merge(ItemCatalog.spawn(missing, get_parent(), self, area if area.has_volume() else FALLBACK_AREA))
+
+	for origin in stored:
+		var item = bodies.get(origin)
+		if item == null or item in inventory.items or inventory.is_full():
+			continue
+		item.touched = true
+		item.reparent(_storage)
+		item.set_stored(true)
+		inventory.add(item)
+		if item.icon == null:
+			_render_icon(item)
+	for entry in loose:
+		var body = bodies.get(entry.origin)
+		if body == null or body in inventory.items:
+			continue
+		body.touched = true
+		body.freeze = true
+		body.global_position = entry.position
+		body.global_rotation = entry.rotation

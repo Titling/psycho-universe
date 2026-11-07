@@ -59,6 +59,9 @@ const HALL := Vector3(88, 0, 120)
 const START_POINT := Vector3(0, 0, 21)
 const MANSION_DOOR := Vector3(76.6, 0, -48)
 const GRAFFITI := Vector3(-23.95, 2.2, -12)
+# Этапы, на которых Мир 1 можно сохранить. В остальные моменты идёт сценка,
+# и сохранение подождёт до её конца.
+const SAVE_STAGES := ["explore", "girl", "after_dead_end", "to_lot", "to_door", "at_door", "hall"]
 const GIRL_PATH := [
 	Vector3(20, 0, -22), Vector3(26, 0, -40), Vector3(16, 0, -62),
 	Vector3(30, 0, -80), Vector3(24, 0, -96),
@@ -94,6 +97,7 @@ var lamp_points: Array[Vector3] = []
 var idle_time := 0.0
 var shadow_seen := false
 var graffiti_seen := false
+var mansion_lit := false
 
 var _materials := {}
 var _house_transforms: Array[Transform3D] = []
@@ -165,7 +169,11 @@ func _ready() -> void:
 	shadow.caught.connect(_on_caught)
 
 	_spawn_wall_shadows()
-	_start()
+	var saved := SaveGame.take_continue("world1")
+	if saved.is_empty():
+		_start()
+	else:
+		_restore(saved)
 
 
 func _process(delta: float) -> void:
@@ -205,6 +213,16 @@ func _apply_sanity(delta: float, dark: bool, near: float) -> float:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("flashlight") and has_phone and not player.locked:
 		hand_phone.toggle()
+	elif event.is_action_pressed("quick_save"):
+		_save("Игра сохранена.")
+	elif event.is_action_pressed("quick_load") and SaveGame.has_save():
+		SaveGame.continue_game()
+
+
+# Закрытие окна крестиком: сначала сохраняемся, если сейчас можно.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_inside_tree() and can_save():
+		SaveGame.save_game(_world_state())
 
 
 # Тень не любит свет: в луче фонарика почти замирает, а под горящим фонарём
@@ -265,6 +283,7 @@ func _start() -> void:
 	ui.show_hint("WASD — идти   Shift — бежать   Пробел — прыжок   Ctrl — присесть   E — действие   Esc — пауза")
 	stage = "explore"
 	bench_phone.ringing = true
+	_save()
 
 
 func _on_bench_phone() -> void:
@@ -280,6 +299,7 @@ func _on_bench_phone() -> void:
 	girl.visible = true
 	girl_index = 0
 	stage = "girl"
+	_save()
 
 
 func _update_girl() -> void:
@@ -310,6 +330,7 @@ func _dead_end() -> void:
 	shadow.paused = false
 	busy = false
 	stage = "after_dead_end"
+	_save()
 	await get_tree().create_timer(2.0).timeout
 	_comment(D.SMS_AFTER_DEAD_END)
 
@@ -333,6 +354,7 @@ func _girl_talk() -> void:
 	busy = false
 	lot_phone.ringing = true
 	stage = "to_lot"
+	_save()
 
 
 func _on_lot_phone() -> void:
@@ -342,6 +364,7 @@ func _on_lot_phone() -> void:
 	shadow_spawn = Vector3(24, 0, -92)
 	door.enabled = true
 	stage = "to_door"
+	_save()
 
 
 func _on_door() -> void:
@@ -351,6 +374,7 @@ func _on_door() -> void:
 		await _scene(D.NOTE, MANSION_DOOR + Vector3(0, 1.5, 0))
 		door.prompt = "Войти"
 		door.enabled = true
+		_save()
 		return
 	busy = true
 	door.enabled = false
@@ -370,6 +394,7 @@ func _on_door() -> void:
 	player.locked = false
 	busy = false
 	hall_phone.ringing = true
+	_save()
 
 
 func _on_hall_phone() -> void:
@@ -380,6 +405,113 @@ func _on_hall_phone() -> void:
 	stage = "end"
 	await ui.fade_to(1.0, 2.5)
 	ui.show_title("Конец прототипа\nПродолжение следует", 1000.0)
+
+
+# ---------------------------------------------------------------- сохранение
+# Квартира и наброски миров переопределяют can_save(), _world_state() и _restore().
+
+func can_save() -> bool:
+	return stage in SAVE_STAGES and not busy and not player.locked and not get_tree().paused
+
+
+# Автосохранение на сюжетных точках и по F5. Если сейчас идёт сценка, молча пропускаем.
+func _save(hint := "") -> void:
+	if not can_save():
+		if hint != "":
+			ui.show_hint("Сейчас сохранить нельзя.", 3.0)
+		return
+	if SaveGame.save_game(_world_state()):
+		ui.show_hint(hint if hint != "" else "Сохранено.", 2.5)
+
+
+func _world_state() -> Dictionary:
+	return {
+		"world": "world1",
+		"stage": stage,
+		"checkpoint": checkpoint,
+		"shadow_spawn": shadow_spawn,
+		"shadow_position": shadow.global_position if shadow.active else shadow_spawn,
+		"has_phone": has_phone,
+		"battery": hand_phone.battery,
+		"shadow_seen": shadow_seen,
+		"graffiti_seen": graffiti_seen,
+		"girl_index": girl_index,
+		"door_prompt": door.prompt,
+		"door_enabled": door.enabled,
+		"mansion_lit": mansion_lit,
+		"sanity": sanity_meter.value,
+		"player_position": player.global_position,
+		"player_yaw": player.rotation.y,
+		"camera_pitch": player.camera.rotation.x,
+	}
+
+
+# Восстановить Мир 1 из сохранения. Уровень уже построен, осталось расставить сюжет.
+func _restore(w: Dictionary) -> void:
+	if not (w.get("stage", "") in SAVE_STAGES):
+		_start()
+		return
+	player.locked = true
+	stage = "intro"   # пока восстанавливаемся, сюжет в _process не двигается
+	# Навигационная сетка появляется на следующем кадре физики, без неё Тень не поставить.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+	checkpoint = w.get("checkpoint", checkpoint)
+	shadow_spawn = w.get("shadow_spawn", shadow_spawn)
+	shadow_seen = w.get("shadow_seen", false)
+	graffiti_seen = w.get("graffiti_seen", false)
+	girl_index = clampi(int(w.get("girl_index", 0)), 0, GIRL_PATH.size() - 1)
+	sanity_meter.value = clampf(float(w.get("sanity", 0.0)), 0.0, 1.0)
+	has_phone = w.get("has_phone", false)
+	if has_phone:
+		bench_phone.ringing = false
+		bench_phone.visible = false
+		hand_phone.visible = true
+		hand_phone.battery = clampf(float(w.get("battery", 1.0)), 0.0, 1.0)
+	else:
+		bench_phone.ringing = true
+	if w.get("mansion_lit", false):
+		_light_mansion()
+	door.prompt = w.get("door_prompt", door.prompt)
+	door.enabled = w.get("door_enabled", false)
+
+	var saved_stage: String = w.stage
+	match saved_stage:
+		"girl":
+			girl.position = GIRL_PATH[girl_index]
+			girl.visible = true
+		"to_lot":
+			lot_phone.ringing = true
+		"hall":
+			shadow.active = false
+			shadow.visible = false
+			_set_interior_lighting()
+			hall_phone.ringing = true
+
+	_place_player(w)
+	# Инвентарь и вещи из квартиры восстанавливаются сами, см. scripts/save_game.gd.
+	SaveGame.apply_sections()
+
+	if has_phone and saved_stage != "hall":
+		# Тень возвращается туда, где была, но не ближе 15 м: игроку нужна фора после загрузки.
+		var at: Vector3 = w.get("shadow_position", shadow_spawn)
+		if at.distance_to(player.global_position) < 15.0:
+			at = shadow_spawn
+		shadow.activate(_nav_point(at))
+
+	await ui.fade_to(0.0, 1.5)
+	stage = saved_stage
+	player.locked = false
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	ui.show_hint("Продолжаем с сохранения.", 3.0)
+
+
+func _place_player(w: Dictionary) -> void:
+	player.global_position = w.get("player_position", checkpoint)
+	player.rotation.y = float(w.get("player_yaw", 0.0))
+	player.camera.rotation.x = float(w.get("camera_pitch", 0.0))
+	player.velocity = Vector3.ZERO
 
 
 # Сценка: игрок замирает, Тень тоже, идут реплики.
@@ -425,6 +557,7 @@ func _light_mansion() -> void:
 	m.set_shader_parameter("color", Color(1.0, 0.68, 0.34))
 	mansion_windows.material_override = m
 	porch_light.visible = true
+	mansion_lit = true
 
 
 # ---------------------------------------------------------------- уровень
@@ -441,6 +574,8 @@ func _setup_input() -> void:
 	_add_action("flashlight", [KEY_F])
 	_add_action("inventory", [KEY_TAB, KEY_I])
 	_add_action("store_item", [KEY_Q])
+	_add_action("quick_save", [KEY_F5])
+	_add_action("quick_load", [KEY_F9])
 
 
 func _add_action(action: String, keys: Array) -> void:

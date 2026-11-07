@@ -165,12 +165,16 @@ func _build_interface() -> void:
 	subtitle.offset_top = 212
 	root.add_child(subtitle)
 
-	_pages["main"] = _page(root, [
+	var main_items := []
+	if not SaveGame.read().is_empty():
+		main_items.append(["Продолжить", _continue_game])
+	main_items.append_array([
 		["Новая игра", _start_game],
 		["Наброски миров", _show.bind("worlds")],
 		["Настройки", _show.bind("settings")],
 		["Выход", func(): get_tree().quit()],
 	])
+	_pages["main"] = _page(root, main_items)
 	_pages["worlds"] = _page(root, [
 		["Кладбище надежд", _start_scene.bind("res://scenes/world2_sketch.tscn")],
 		["Зал ожидания", _start_scene.bind("res://scenes/world3_sketch.tscn")],
@@ -282,6 +286,15 @@ func _show(page: String) -> void:
 
 func _start_game() -> void:
 	_start_scene(GAME_SCENE)
+
+
+# Продолжить с сохранения: уровень, на котором сохранились, сам заберёт своё состояние.
+func _continue_game() -> void:
+	var path: String = SaveGame.read().get("scene", "")
+	if path == "" or not ResourceLoader.exists(path):
+		return
+	SaveGame.continue_requested = true
+	_start_scene(path)
 
 
 func _start_scene(path: String) -> void:
