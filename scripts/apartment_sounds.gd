@@ -1,8 +1,11 @@
-# Звуки квартиры без файлов: всё генерируется при запуске, как в synth.gd.
+# Звуки квартиры. Настоящий звук берётся из res://sounds/<имя>.ogg (см. sound_files.gd),
+# а если файла нет, генерируется при запуске, как в synth.gd.
 # Шаги зависят от пола под игроком, холодильник и кран глохнут за закрытой дверью кухни.
 extends Node
 
 const RATE := 22050
+const SoundFiles := preload("res://scripts/sound_files.gd")
+const LOOPED := ["fridge", "water"]
 const TILE_AREAS := [Rect2(5, 0, 3, 4), Rect2(0, 4, 2.4, 2)]   # кухня и ванная, остальное дерево
 const STEP_VARIANTS := 4
 const WALK_STRIDE := 0.72
@@ -102,7 +105,8 @@ func _step(volume: float) -> void:
 static func step(tile: bool, variant: int) -> AudioStream:
 	var key := "step_%s_%d" % ["tile" if tile else "wood", variant]
 	if key not in _cache:
-		_cache[key] = _tile_step() if tile else _wood_step()
+		var file := SoundFiles.find(key)
+		_cache[key] = file if file != null else (_tile_step() if tile else _wood_step())
 	return _cache[key]
 
 
@@ -132,7 +136,8 @@ static func clock_tick() -> AudioStream:
 
 static func _cached(key: String, build: Callable) -> AudioStream:
 	if key not in _cache:
-		_cache[key] = build.call()
+		var file := SoundFiles.find(key, key in LOOPED)
+		_cache[key] = file if file != null else build.call()
 	return _cache[key]
 
 
