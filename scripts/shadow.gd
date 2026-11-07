@@ -6,12 +6,14 @@ signal caught
 
 const SPEED := 1.8
 const CATCH_DISTANCE := 1.3
+const FRENZY_BOOST := 0.2   # чем сильнее героя накрыло, тем быстрее она идёт
 
 var target: Node3D
 var active := false
 var paused := false
 var slowed := false    # в луче фонарика Тень почти замирает
 var waiting := false   # игрок стоит под горящим фонарём: Тень ждёт в темноте
+var frenzy := 0.0      # рассудок героя: 1 — накрыло полностью
 var agent: NavigationAgent3D
 
 var _repath := 0.0
@@ -78,7 +80,7 @@ func _physics_process(delta: float) -> void:
 	if to.length() < 0.05:
 		to = target.global_position - global_position
 		to.y = 0.0
-	velocity = to.normalized() * SPEED * (0.3 if slowed else 1.0)
+	velocity = to.normalized() * SPEED * (1.0 + FRENZY_BOOST * frenzy) * (0.3 if slowed else 1.0)
 	move_and_slide()
 	global_position.y = 0.0
 	if to.length() > 0.01:

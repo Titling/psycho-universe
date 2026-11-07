@@ -1,0 +1,13 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://shaders/stone.gdshader" id="1_3ke05"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_3ke05")
+shader_parameter/albedo = Color(0, 0, 0, 1)
+shader_parameter/emission = Color(1, 0.78, 0.5, 1)
+shader_parameter/tex_scale = null
+shader_parameter/normal_strength = null
+shader_parameter/roughness = null
+shader_parameter/vertical_grain = null

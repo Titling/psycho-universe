@@ -1,0 +1,45 @@
+Модели с Poly Haven (https://polyhaven.com), лицензия CC0: можно использовать где угодно,
+в том числе в коммерческой игре, указывать авторов не обязательно.
+
+vintage_day_bed          Vintage Day Bed            Aron Łyczek
+painted_wooden_cabinet   Painted Wooden Cabinet     Kirill Sannikov
+painted_wooden_chair_01  Painted Wooden Chair 01    Kuutti Siitonen
+painted_wooden_table     Painted Wooden Table       Kirill Sannikov
+painted_wooden_stool     Painted Wooden Stool       Kirill Sannikov
+painted_wooden_shelves   Painted Wooden Shelves     Kirill Sannikov
+ClassicNightstand_01     Classic Nightstand 01      Kirill Sannikov
+electric_stove           Electric Stove             Kuutti Siitonen
+GothicBed_01             Gothic Bed 01              Kirill Sannikov
+ornate_mirror_01         Ornate Mirror 01           James Ray Cock
+
+Текстура стен квартиры textures/wall_old_plaster*.jpg: Concrete Wall 003, Poly Haven, CC0.
+vintage_day_bed больше не используется в сцене, папку можно удалить.
+Текстура стен textures/wall_brick_grey*: Patterned Plaster Wall, Poly Haven, CC0 (обесцвечена).
+rubber_boots: Rubber Boots, L, Poly Haven, CC0.
+Текстура входной двери textures/door_metal*: Metal Plate 02, Poly Haven, CC0.
+
+Декор (Poly Haven, CC0):
+wall_clock               Wall Clock                   PierreB3D
+stationery_supplies      Stationery Supplies          Mateusz Sadek
+pot_enamel_01            Pot Enamel 01                Kuutti Siitonen
+wooden_cutting_board     Wooden Cutting Board         Kuutti Siitonen
+lemon                    Lemon                        Kuutti Siitonen
+metal_jug                Metal Jug                    Anzor Lezhava
+wooden_spoon             Wooden Spoon                 Ronnie Barter
+
+Следы жизни (Poly Haven, CC0):
+cigarette_pack           Cigarette Pack               Ulrich Büch
+trashbag                 Trashbag                     Benny Weimer
+russian_food_cans_01     Russian Food Cans 01         Kosan Aziz
+gamepad                  Gamepad                      Josh Dean
+bleach_bottle            Bleach Bottle                James Ray Cock
+carved_wooden_plate      Carved Wooden Plate          Jan Martens
+cassette_player          Cassette Player              Oday Abuzaeed
+vintage_electric_kettle  Vintage Electric Kettle      SV Garip
+brass_pan_01             Brass Pan 01                 Rico Cilliers
+wooden_bowl_02           Wooden Bowl 02               Kuutti Siitonen
+ceramic_pot              Ceramic Pot                  Aron Łyczek
+
+
+Дом models/panel_house: Soviet Panel Apartment House 3D, GGBotNet, OpenGameArt (https://opengameart.org/content/soviet-panel-apartment-house-3d), CC0.
+Машины models/kenney_cars: Car Kit 3.1, Kenney (https://kenney.nl/assets/car-kit), CC0.

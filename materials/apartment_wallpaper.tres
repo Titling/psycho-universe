@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" load_steps=4 format=3 uid="uid://bux5x3awjnqmi"]
+
+[ext_resource type="Shader" path="res://shaders/stone.gdshader" id="1_v6co4"]
+[ext_resource type="Texture2D" path="res://textures/wall_brick_grey.png" id="2_oyggs"]
+[ext_resource type="Texture2D" path="res://textures/wall_brick_grey_n.jpg" id="3_p6am3"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_v6co4")
+shader_parameter/albedo = Color(0.32, 0.32, 0.33, 1)
+shader_parameter/emission = Color(0, 0, 0, 1)
+shader_parameter/tex_scale = 0.556
+shader_parameter/normal_strength = 1.0
+shader_parameter/roughness = 0.82
+shader_parameter/vertical_grain = false
+shader_parameter/tex = ExtResource("2_oyggs")
+shader_parameter/tex_normal = ExtResource("3_p6am3")
