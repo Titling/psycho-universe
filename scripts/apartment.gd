@@ -75,6 +75,13 @@ const GRABBABLES := [
 	["Прихожая/Следы_жизни/Ключ", "ключи", true, false, ["Прихожая/Следы_жизни/Ключи_брелок", "Прихожая/Следы_жизни/Ключи_кольцо"]],
 	["Прихожая/Вещи/Обувная_коробка", "обувная коробка", true, false, ["Прихожая/Вещи/Крышка_коробки"]],
 ]
+# Картинки на стенах: узел-подложка в сцене, текстура и узлы-заглушки, которые картинка заменяет.
+# Текстуры рисует tools/gen_wall_pictures.py.
+const WALL_PICTURES := [
+	["Комната/Вещи/Плакат1", "res://textures/poster_concert.png", ["Комната/Вещи/Плакат1_полоса"]],
+	["Комната/Вещи/Плакат2", "res://textures/poster_moon.png", ["Комната/Вещи/Плакат2_круг"]],
+	["Кухня/Вещи/Календарь", "res://textures/calendar_march.png", ["Кухня/Вещи/Календарь_шапка"], "День"],
+]
 const WAKE_SANITY := 0.7
 const READ_ZONE := 0.16
 
@@ -116,6 +123,7 @@ func _ready() -> void:
 	_setup_living_apartment()
 	_add_switches()
 	_add_readables()
+	_hang_wall_pictures()
 	_disable_small_shadows($"Комната")
 	_disable_small_shadows($"Кухня")
 	_disable_small_shadows($"Ванная")
@@ -254,6 +262,40 @@ func _add_readables() -> void:
 		zone.position = item.global_position
 		zone.used.connect(_read.bind(item, entry.pages))
 		add_child(zone)
+
+
+# Плакаты и календарь в сцене — цветные плоскости. Поверх каждой кладём картинку размером
+# с неё, а нарисованные плоскостями детали (полосы, круг, клетки дней) прячем. Сама подложка
+# остаётся: она даёт плакату толщину.
+func _hang_wall_pictures() -> void:
+	for entry in WALL_PICTURES:
+		var board: MeshInstance3D = get_node(entry[0])
+		var size: Vector3 = board.mesh.size
+		var material := StandardMaterial3D.new()
+		material.albedo_texture = load(entry[1])
+		material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		material.roughness = 0.9
+		var quad := QuadMesh.new()
+		quad.size = Vector2(size.x, size.y)
+		var picture := MeshInstance3D.new()
+		picture.name = board.name + "_картинка"
+		picture.mesh = quad
+		picture.material_override = material
+		picture.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		board.add_child(picture)   # потомок подложки: когда календарь берут в руки, пропадает и картинка
+		# Лицом в комнату: вдоль тонкой оси подложки, в сторону центра квартиры.
+		var out := APARTMENT_AREA.get_center() - board.global_position
+		var thin: Vector3 = board.global_basis.z.normalized()
+		var face := thin if thin.dot(out) > 0.0 else -thin
+		picture.global_position = board.global_position + face * (size.z / 2.0 + 0.003)
+		picture.look_at(picture.global_position - face, Vector3.UP)
+		for path in entry[2]:
+			get_node(path).visible = false
+		if entry.size() > 3:
+			for child in board.get_parent().get_children():
+				if String(child.name).begins_with(entry[3]):
+					child.visible = false
 
 
 # Герой берёт предмет в руки: на месте его нет, пока лист перед глазами.
