@@ -55,6 +55,12 @@
 - Файл: `user://save.json`, на Windows `%APPDATA%\Godot\app_userdata\Psycho Universe\save.json`.
 - Как добавить в сохранение свою часть игры: описано в начале `scripts/save_game.gd`.
 
+## Автотест
+
+`tests/smoke_test.tscn` открывает все сцены и проверяет, что сохранения и инвентарь переживают переход
+из квартиры во двор и загрузку. Запуск: `godot --headless --path . res://tests/smoke_test.tscn`
+(код выхода 0, если всё в порядке). На GitHub он запускается сам на каждый PR и пуш (`.github/workflows/smoke.yml`).
+
 ## Визуальный стиль
 
 Ориентир — Amnesia: The Dark Descent (только настроение, ни одного ассета оттуда в проекте нет):
