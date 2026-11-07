@@ -1,10 +1,13 @@
-# Звуки без файлов: генерируются прямо в коде.
+# Звуки режимов. Если в res://sounds/synth/<режим>.ogg лежит настоящая запись, играет она,
+# иначе звук генерируется прямо в коде (см. sound_files.gd).
 # mode: "ring" — звонок телефона, "beep" — пришло SMS, "drone" — гул Тени,
 # "ambient" — мрачный фон меню и уровней, "tick" — шорох кнопки меню, "" — тишина.
 extends AudioStreamPlayer3D
 
 const RATE := 22050.0
 const Settings := preload("res://scripts/settings.gd")
+const SoundFiles := preload("res://scripts/sound_files.gd")
+const LOOPED := ["ring", "drone", "ambient"]   # остальные режимы звучат один раз
 
 var mode := ""
 var level := 1.0
@@ -13,6 +16,8 @@ var _playback: AudioStreamGeneratorPlayback
 var _t := 0.0
 var _phase := 0.0
 var _noise := 0.0
+var _file: AudioStreamPlayer3D   # проигрыватель записи, если для режима есть файл
+var _file_mode := ""
 
 # Генераторы живут до конца игры. Аудиопоток Godot 4.3 держит на генератор голый указатель
 # и может ещё раз смешать звук после того, как плеер удалён вместе со сценой. Если генератор
@@ -48,9 +53,44 @@ func set_mode(new_mode: String) -> void:
 	# Фоновый гул — это музыка игры, остальное (звонок, SMS, гул Тени, шорох) — эффекты.
 	Settings.route_as_music(self, mode == "ambient")
 	_t = 0.0
+	_play_file()
+
+
+func _play_file() -> void:
+	var stream: AudioStream = null
+	if mode != "":
+		stream = SoundFiles.find("synth/" + mode, mode in LOOPED)
+	if stream == null:
+		_file_mode = ""
+		if _file != null:
+			_file.stop()
+		return
+	if _file == null:
+		_file = AudioStreamPlayer3D.new()
+		_file.unit_size = unit_size
+		_file.max_distance = max_distance
+		_file.finished.connect(_on_file_finished)
+		add_child(_file)
+	Settings.route_as_music(_file, mode == "ambient")
+	_file_mode = mode
+	_file.stream = stream
+	_file.volume_db = linear_to_db(maxf(level, 0.0001))
+	_file.play()
+
+
+# Короткая запись (SMS, шорох кнопки) доиграла: режим гаснет, как у сгенерированного звука.
+func _on_file_finished() -> void:
+	if mode == _file_mode and mode not in LOOPED:
+		mode = ""
 
 
 func _process(_delta: float) -> void:
+	if _file_mode != "":
+		if mode != _file_mode:
+			_play_file()
+		else:
+			_file.volume_db = linear_to_db(maxf(level, 0.0001))
+			return
 	if _playback == null or mode == "":
 		return
 	for i in _playback.get_frames_available():
