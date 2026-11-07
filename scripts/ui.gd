@@ -6,6 +6,7 @@ signal inventory_closed
 
 const Style := preload("res://scripts/style.gd")
 const MENU_SCENE := "res://scenes/menu.tscn"
+const FeedbackForm := preload("res://scripts/feedback_form.gd")
 const SANITY_STAGES := [
 	preload("res://textures/sanity/stage_1.png"),
 	preload("res://textures/sanity/stage_2.png"),
@@ -27,6 +28,7 @@ var _dialog_text: RichTextLabel
 var _sms: PanelContainer
 var _sms_text: Label
 var _pause: Control
+var _feedback
 var _paper: PanelContainer
 var _paper_text: Label
 var _sanity: TextureRect
@@ -290,11 +292,16 @@ func _build_pause() -> void:
 	column.add_child(Style.quality_toggle(34))
 	column.add_child(Style.vsync_toggle(34))
 	column.add_child(Style.fps_toggle(34))
+	var feedback := Style.menu_button("Оставить отзыв", 34)
+	feedback.pressed.connect(func(): _feedback.open())
+	column.add_child(feedback)
 	var to_menu := Style.menu_button("В главное меню", 34)
 	to_menu.pressed.connect(func():
 		get_tree().paused = false
 		get_tree().change_scene_to_file(MENU_SCENE))
 	column.add_child(to_menu)
+	_feedback = FeedbackForm.new()
+	add_child(_feedback)
 
 
 func _set_paused(value: bool) -> void:
