@@ -27,6 +27,8 @@ var _dialog_text: RichTextLabel
 var _sms: PanelContainer
 var _sms_text: Label
 var _pause: Control
+var _pause_status: Label
+var _leaving := false
 var _paper: PanelContainer
 var _paper_text: Label
 var _sanity: TextureRect
@@ -290,14 +292,55 @@ func _build_pause() -> void:
 	column.add_child(Style.quality_toggle(34))
 	column.add_child(Style.vsync_toggle(34))
 	column.add_child(Style.fps_toggle(34))
-	var to_menu := Style.menu_button("В главное меню", 34)
-	to_menu.pressed.connect(func():
-		get_tree().paused = false
-		get_tree().change_scene_to_file(MENU_SCENE))
+	var save_exit := Style.menu_button("Сохранить и выйти", 34)
+	save_exit.pressed.connect(_save_and_exit)
+	column.add_child(save_exit)
+	var to_menu := Style.menu_button("Выйти без сохранения", 34)
+	to_menu.pressed.connect(_exit_to_menu)
 	column.add_child(to_menu)
+	_pause_status = _label(22, HORIZONTAL_ALIGNMENT_CENTER)
+	_pause_status.add_theme_color_override("font_color", Style.DIM)
+	column.add_child(_pause_status)
+
+
+# «Сохранить и выйти»: уровень сам решает, можно ли сейчас сохраняться (can_save()) и что
+# кладётся в файл (_world_state()). Во время сценки или в набросках миров сохранить нельзя:
+# тогда игра остаётся на паузе, а выйти можно кнопкой «Выйти без сохранения».
+func _save_and_exit() -> void:
+	if _leaving:
+		return
+	var level := get_tree().current_scene
+	if level == null or not level.has_method("can_save") or not level.has_method("_world_state"):
+		_pause_status.text = "Здесь игра не сохраняется."
+		return
+	# can_save() не разрешает сохраняться на паузе, поэтому на один вызов паузу снимаем:
+	# кадр за это время не проходит.
+	get_tree().paused = false
+	var allowed: bool = level.can_save()
+	var ok := allowed and SaveGame.save_game(level._world_state())
+	get_tree().paused = true
+	if not allowed:
+		_pause_status.text = "Сейчас сохранить нельзя."
+		return
+	if not ok:
+		_pause_status.text = "Не удалось сохранить. Игра не закрыта."
+		return
+	_pause_status.text = "Сохранено"
+	_leaving = true
+	await get_tree().create_timer(0.6, true, false, true).timeout
+	_exit_to_menu()
+
+
+func _exit_to_menu() -> void:
+	_leaving = true
+	get_tree().paused = false
+	get_tree().change_scene_to_file(MENU_SCENE)
 
 
 func _set_paused(value: bool) -> void:
+	if _leaving:
+		return
+	_pause_status.text = ""
 	_pause.visible = value
 	get_tree().paused = value
 	Input.mouse_mode = Input.MOUSE_MODE_HIDDEN if value else Input.MOUSE_MODE_CAPTURED
