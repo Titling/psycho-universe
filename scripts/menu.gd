@@ -170,14 +170,15 @@ func _build_interface() -> void:
 		main_items.append(["Продолжить", _continue_game])
 	main_items.append_array([
 		["Новая игра", _start_game],
-		["Наброски миров", _show.bind("worlds")],
+		["Выбрать мир", _show.bind("worlds")],
 		["Настройки", _show.bind("settings")],
 		["Выход", func(): get_tree().quit()],
 	])
 	_pages["main"] = _page(root, main_items)
 	_pages["worlds"] = _page(root, [
-		["Кладбище надежд", _start_scene.bind("res://scenes/world2_sketch.tscn")],
-		["Зал ожидания", _start_scene.bind("res://scenes/world3_sketch.tscn")],
+		["Окраина города", _start_scene.bind("res://scenes/main.tscn")],
+		["Кладбище надежд", _start_scene.bind("res://scenes/world2.tscn")],
+		["Зал ожидания", _start_scene.bind("res://scenes/world3.tscn")],
 		["Назад", _show.bind("main")],
 	])
 	_pages["settings"] = _settings_page(root)
@@ -227,16 +228,33 @@ func _page(root: Control, items: Array) -> VBoxContainer:
 
 
 func _settings_page(root: Control) -> VBoxContainer:
-	var column := _column(root)
+	# Две колонки: слева ползунки, справа переключатели. В одну колонку всё не влезает по высоте.
+	var page := _column(root)
+	page.offset_top = 290
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 90)
+	page.add_child(row)
+	var column := VBoxContainer.new()
 	column.custom_minimum_size.x = 400
+	column.add_theme_constant_override("separation", 6)
+	row.add_child(column)
 	column.add_child(_slider("Громкость", 0.0, 1.0, Settings.volume, func(v):
 		Settings.volume = v
+		Settings.apply()))
+	column.add_child(_slider("Музыка", 0.0, 1.0, Settings.music_volume, func(v):
+		Settings.music_volume = v
+		Settings.apply()))
+	column.add_child(_slider("Эффекты", 0.0, 1.0, Settings.sfx_volume, func(v):
+		Settings.sfx_volume = v
 		Settings.apply()))
 	column.add_child(_slider("Яркость", 0.6, 1.8, Settings.brightness, func(v):
 		Settings.brightness = v
 		film_material.set_shader_parameter("brightness", v)))
 	column.add_child(_slider("Чувствительность мыши", 0.3, 2.5, Settings.sensitivity, func(v):
 		Settings.sensitivity = v))
+	var toggles := VBoxContainer.new()
+	toggles.add_theme_constant_override("separation", 12)
+	row.add_child(toggles)
 	var full: Button = Style.menu_button("", 28)
 	var caption := func(): full.text = "Полный экран: да" if Settings.fullscreen else "Полный экран: нет"
 	caption.call()
@@ -244,18 +262,16 @@ func _settings_page(root: Control) -> VBoxContainer:
 		Settings.fullscreen = not Settings.fullscreen
 		Settings.apply()
 		caption.call())
-	column.add_child(full)
-	column.add_theme_constant_override("separation", 6)
-	column.offset_top = 270
-	column.add_child(Style.quality_toggle(26))
-	column.add_child(Style.vsync_toggle(26))
-	column.add_child(Style.fps_toggle(26))
+	toggles.add_child(full)
+	toggles.add_child(Style.quality_toggle(26))
+	toggles.add_child(Style.vsync_toggle(26))
+	toggles.add_child(Style.fps_toggle(26))
 	var back: Button = Style.menu_button("Назад", 34)
 	back.pressed.connect(func():
 		Settings.save()
 		_show("main"))
-	column.add_child(back)
-	return column
+	toggles.add_child(back)
+	return page
 
 
 func _slider(title: String, low: float, high: float, value: float, changed: Callable) -> VBoxContainer:

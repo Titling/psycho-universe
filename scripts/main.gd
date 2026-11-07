@@ -55,6 +55,7 @@ const T_PLASTER := preload("res://textures/wallpaper.png")
 const FOG_COLOR := Color(0.022, 0.028, 0.04)
 const LAMP_COLOR := Color(1.0, 0.56, 0.24)
 const HALL := Vector3(88, 0, 120)
+const WORLD_2 := "res://scenes/world2.tscn"
 
 const START_POINT := Vector3(0, 0, 21)
 const MANSION_DOOR := Vector3(76.6, 0, -48)
@@ -402,9 +403,15 @@ func _on_hall_phone() -> void:
 	await _scene(D.MANSION.slice(1), hall_phone.global_position)
 	busy = true
 	player.locked = true
+	shadow.paused = true
 	stage = "end"
+	ui.set_prompt("")
+	hands.stash_held()
+	await ui.say(D.WORLD1_LEAVE)
 	await ui.fade_to(1.0, 2.5)
-	ui.show_title("Конец прототипа\nПродолжение следует", 1000.0)
+	# Мир 1 пройден: дальше Мир 2, вещи из инвентаря едут с героем.
+	hands.pack_for_travel()
+	get_tree().change_scene_to_file(WORLD_2)
 
 
 # ---------------------------------------------------------------- сохранение

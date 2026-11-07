@@ -4,6 +4,7 @@
 extends AudioStreamPlayer3D
 
 const RATE := 22050.0
+const Settings := preload("res://scripts/settings.gd")
 
 var mode := ""
 var level := 1.0
@@ -44,6 +45,8 @@ func _enter_tree() -> void:
 
 func set_mode(new_mode: String) -> void:
 	mode = new_mode
+	# Фоновый гул — это музыка игры, остальное (звонок, SMS, гул Тени, шорох) — эффекты.
+	Settings.route_as_music(self, mode == "ambient")
 	_t = 0.0
 
 
