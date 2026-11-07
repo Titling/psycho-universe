@@ -6,6 +6,7 @@ signal inventory_closed
 
 const Style := preload("res://scripts/style.gd")
 const MENU_SCENE := "res://scenes/menu.tscn"
+const FeedbackForm := preload("res://scripts/feedback_form.gd")
 const SANITY_STAGES := [
 	preload("res://textures/sanity/stage_1.png"),
 	preload("res://textures/sanity/stage_2.png"),
@@ -29,6 +30,7 @@ var _sms_text: Label
 var _pause: Control
 var _pause_status: Label
 var _leaving := false
+var _feedback
 var _paper: PanelContainer
 var _paper_text: Label
 var _sanity: TextureRect
@@ -295,12 +297,17 @@ func _build_pause() -> void:
 	var save_exit := Style.menu_button("Сохранить и выйти", 34)
 	save_exit.pressed.connect(_save_and_exit)
 	column.add_child(save_exit)
+	var feedback := Style.menu_button("Оставить отзыв", 34)
+	feedback.pressed.connect(func(): _feedback.open())
+	column.add_child(feedback)
 	var to_menu := Style.menu_button("Выйти без сохранения", 34)
 	to_menu.pressed.connect(_exit_to_menu)
 	column.add_child(to_menu)
 	_pause_status = _label(22, HORIZONTAL_ALIGNMENT_CENTER)
 	_pause_status.add_theme_color_override("font_color", Style.DIM)
 	column.add_child(_pause_status)
+	_feedback = FeedbackForm.new()
+	add_child(_feedback)
 
 
 # «Сохранить и выйти»: уровень сам решает, можно ли сейчас сохраняться (can_save()) и что

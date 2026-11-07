@@ -4,6 +4,7 @@ extends "res://scripts/sketches/sketch_base.gd"
 
 const Style := preload("res://scripts/style.gd")
 const FpsLabel := preload("res://scripts/fps_label.gd")
+const FeedbackForm := preload("res://scripts/feedback_form.gd")
 const SHAFT_SHADER := preload("res://shaders/light_shaft.gdshader")
 const GAME_SCENE := "res://scenes/apartment.tscn"
 const CAMERA_POS := Vector3(0, 1.75, 7.2)
@@ -16,6 +17,7 @@ var _logo: Label
 var _echo: Label
 var _pages := {}
 var _leaving := false
+var _feedback
 
 
 func _ready() -> void:
@@ -172,6 +174,7 @@ func _build_interface() -> void:
 		["Новая игра", _start_game],
 		["Выбрать мир", _show.bind("worlds")],
 		["Настройки", _show.bind("settings")],
+		["Оставить отзыв", func(): _feedback.open()],
 		["Выход", func(): get_tree().quit()],
 	])
 	_pages["main"] = _page(root, main_items)
@@ -190,6 +193,9 @@ func _build_interface() -> void:
 	_fade.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(_fade)
+
+	_feedback = FeedbackForm.new()
+	add_child(_feedback)
 
 
 func _logo_label() -> Label:
