@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://shaders/curtain.gdshader" id="1_igty7"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_igty7")
+shader_parameter/cloth = null
+shader_parameter/folds = null
+shader_parameter/depth = null
+shader_parameter/seed = null

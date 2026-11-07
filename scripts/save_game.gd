@@ -21,10 +21,8 @@ const PATH := "user://save.json"
 const TMP_PATH := "user://save.json.tmp"
 const VERSION := 1
 
-# true, если игра перезапускает сцену, чтобы продолжить с сохранения.
+# true, пока игра открывает уровень, чтобы продолжить с сохранения.
 var continue_requested := false
-# true, если игрок выбрал «Новая игра»: стартовое меню второй раз не показываем.
-var new_requested := false
 
 var _data := {}
 
@@ -97,19 +95,25 @@ func delete_save() -> void:
 	_data = {}
 
 
-# Перезапустить текущую сцену и продолжить с сохранения.
+# Продолжить с сохранения: открыть уровень, на котором сохранились (квартиру или Мир 1).
+# Уровень сам заберёт своё состояние через take_continue().
 func continue_game() -> void:
-	if read().is_empty():
+	var path: String = read().get("scene", "")
+	if path == "" or not ResourceLoader.exists(path):
 		return
 	continue_requested = true
-	get_tree().reload_current_scene()
+	get_tree().paused = false
+	get_tree().change_scene_to_file(path)
 
 
-# Начать заново: сохранение остаётся, пока игрок не дойдёт до первой точки сохранения.
-func new_game() -> void:
+# Уровень спрашивает при запуске: продолжаем ли мы с сохранения, сделанного на нём.
+# Возвращает состояние мира или пустой словарь, если начинать с начала.
+func take_continue(world_name: String) -> Dictionary:
+	if not continue_requested:
+		return {}
 	continue_requested = false
-	new_requested = true
-	get_tree().reload_current_scene()
+	var w := world_state()
+	return w if w.get("world", "") == world_name else {}
 
 
 # ---------------------------------------------------------------- JSON не знает векторов

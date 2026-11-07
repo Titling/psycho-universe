@@ -11,6 +11,11 @@ func _process(_delta: float) -> void:
 	pass
 
 
+# Наброски миров пока не сохраняются.
+func can_save() -> bool:
+	return false
+
+
 # Общий старт: управление, окружение, фильтр.
 func _setup_sketch() -> void:
 	randomize()
@@ -36,7 +41,7 @@ func _intro(title: String) -> void:
 	await get_tree().create_timer(0.3).timeout
 	ui.show_title(title)
 	await ui.fade_to(0.0, 2.0)
-	ui.show_hint("Набросок, сюжета пока нет.   WASD — идти   Shift — бежать   Esc — показать курсор")
+	ui.show_hint("Набросок, сюжета пока нет.   WASD — идти   Shift — бежать   Пробел — прыжок   Ctrl — присесть   Esc — пауза")
 
 
 # Деталь без коллизии: для мелочей, через которые не нужно ходить.
@@ -52,7 +57,7 @@ func _mesh(pos: Vector3, size: Vector3, color: Color, rot := Vector3.ZERO, tex: 
 	return mi
 
 
-# Надпись в мире пиксельным шрифтом.
+# Надпись в мире.
 func _label(pos: Vector3, text: String, size := 32, color := Color(0.1, 0.08, 0.07), yaw := 0.0, unshaded := false) -> Label3D:
 	var l := Label3D.new()
 	l.text = text
@@ -62,7 +67,7 @@ func _label(pos: Vector3, text: String, size := 32, color := Color(0.1, 0.08, 0.
 	l.outline_size = 0
 	l.shaded = not unshaded
 	l.double_sided = false
-	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	l.position = pos
 	l.rotation.y = yaw
 	add_child(l)
@@ -73,7 +78,7 @@ func _label(pos: Vector3, text: String, size := 32, color := Color(0.1, 0.08, 0.
 func _picture_material(tex: Texture2D, emission := 0.0) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_texture = tex
-	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	if emission > 0.0:
 		m.emission_enabled = true
 		m.emission_texture = tex
