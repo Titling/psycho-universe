@@ -1,0 +1,14 @@
+[gd_resource type="StandardMaterial3D" load_steps=3 format=3]
+
+[ext_resource type="Texture2D" path="res://textures/door_metal.jpg" id="1_fc1mc"]
+[ext_resource type="Texture2D" path="res://textures/door_metal_n.jpg" id="2_1wce0"]
+
+[resource]
+albedo_color = Color(0.5, 0.52, 0.55, 1)
+albedo_texture = ExtResource("1_fc1mc")
+metallic = 0.75
+roughness = 0.55
+normal_enabled = true
+normal_texture = ExtResource("2_1wce0")
+uv1_scale = Vector3(0.6, 0.6, 0.6)
+uv1_triplanar = true

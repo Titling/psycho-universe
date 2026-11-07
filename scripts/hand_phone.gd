@@ -4,7 +4,7 @@ extends Node3D
 
 signal battery_low
 
-const DRAIN := 1.0 / 90.0      # полной батареи хватает на полторы минуты света
+const DRAIN := 1.0 / 180.0     # полной батареи хватает на три минуты света
 const REST := Vector3(0.24, -0.27, -0.46)
 const RAISED := Vector3(0.17, -0.16, -0.4)
 
@@ -56,8 +56,13 @@ func _ready() -> void:
 	light.spot_range = 18.0
 	light.spot_angle = 26.0
 	light.light_energy = 0.0
-	light.light_color = Color(0.85, 0.92, 1.0)
+	light.light_color = Color(0.9, 0.9, 0.86)
+	light.shadow_enabled = true
+	light.add_to_group(&"always_shadow")   # фонарик в руке тень не теряет (scripts/light_lod.gd)
 	light.position = Vector3(0, 0.06, -0.01)
+	body.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	hand.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_screen.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(light)
 	_update_screen(false)
 
@@ -76,7 +81,8 @@ func _process(delta: float) -> void:
 	var flicker := 1.0
 	if light_on and battery < 0.15 and fmod(Time.get_ticks_msec() / 1000.0 * 9.0, 4.0) < 0.5:
 		flicker = 0.2
-	light.light_energy = 3.0 * flicker if light_on else 0.0
+	light.visible = light_on
+	light.light_energy = 3.0 * flicker
 
 
 func toggle() -> void:

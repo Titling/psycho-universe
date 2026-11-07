@@ -8,34 +8,57 @@ const ShadowScript := preload("res://scripts/shadow.gd")
 const PhoneScript := preload("res://scripts/phone.gd")
 const UIScript := preload("res://scripts/ui.gd")
 const SynthScript := preload("res://scripts/synth.gd")
+const HOUSE_MESH: Mesh = preload("res://models/panel_house/spah9lvl.obj")
+const HOUSE_TEXTURE: Texture2D = preload("res://models/panel_house/spah9lvl.png")
+const HOUSE_SHADER := preload("res://shaders/panel_house.gdshader")
+const HOUSE_SEGMENT := 25.0   # м: длина модели дома при высоте 27 м
+const CAR_MODELS := [
+	preload("res://models/kenney_cars/sedan.glb"),
+	preload("res://models/kenney_cars/suv.glb"),
+	preload("res://models/kenney_cars/hatchback-sports.glb"),
+	preload("res://models/kenney_cars/delivery.glb"),
+]
+# Настоящие габариты машин, м: длина, ширина, высота. Модели Kenney игрушечные: короткие,
+# широкие и высокие, с огромными колёсами. Кузов растягивается до этих размеров, а колёса
+# остаются круглыми и получают обычный радиус.
+const CAR_SIZES := [
+	Vector3(4.4, 1.72, 1.42),   # седан
+	Vector3(4.5, 1.82, 1.72),   # внедорожник
+	Vector3(4.0, 1.68, 1.36),   # хэтчбек
+	Vector3(5.0, 1.95, 2.05),   # фургон
+]
+const WHEEL_RADIUS := 0.31
+const KENNEY_WHEEL_RADIUS := 0.3
+const CAR_SAG := 0.04   # старые машины стоят на подспущенных колёсах
 const WallShadowScript := preload("res://scripts/wall_shadow.gd")
 const InteractableScript := preload("res://scripts/interactable.gd")
 const HandPhoneScript := preload("res://scripts/hand_phone.gd")
-const MenuScript := preload("res://scripts/menu.gd")
-const PS1_SHADER := preload("res://shaders/ps1.gdshader")
+const FlameLightScript := preload("res://scripts/flame_light.gd")
+const Settings := preload("res://scripts/settings.gd")
+# Куда могут улететь вещи из инвентаря, если их достать во дворе: весь Мир 1 с запасом.
+const LEVEL_AREA := AABB(Vector3(-300, -20, -300), Vector3(600, 120, 600))
+const STONE_SHADER := preload("res://shaders/stone.gdshader")
 const WINDOW_SHADER := preload("res://shaders/window.gdshader")
 const FILM_SHADER := preload("res://shaders/film.gdshader")
+const FLAME_SHADER := preload("res://shaders/flame.gdshader")
+const NIGHT_SKY_SHADER := preload("res://shaders/night_sky.gdshader")
 
-# Пиксельные текстуры (лежат в textures/, сгенерированы скриптом tools/gen_textures.py).
-const T_CONCRETE := preload("res://textures/concrete_panel.png")
-const T_ASPHALT := preload("res://textures/asphalt.png")
-const T_RUST := preload("res://textures/rust_metal.png")
-const T_WOOD := preload("res://textures/wood.png")
-const T_BRICK := preload("res://textures/brick.png")
-const T_TILES := preload("res://textures/tiles_checker.png")
-const T_PLASTER := preload("res://textures/plaster.png")
+# Текстуры лежат в textures/, сгенерированы скриптом tools/gen_textures_gothic.gd.
+const T_CONCRETE := preload("res://textures/stone_wall.png")
+const T_ASPHALT := preload("res://textures/cobble.png")
+const T_RUST := preload("res://textures/iron.png")
+const T_WOOD := preload("res://textures/dark_wood.png")
+const T_BRICK := preload("res://textures/rough_stone.png")
+const T_TILES := preload("res://textures/marble.png")
+const T_PLASTER := preload("res://textures/wallpaper.png")
 
-const FOG_COLOR := Color(0.12, 0.13, 0.15)
-const WALL_COLOR := Color(0.78, 0.78, 0.8)
-const LAMP_COLOR := Color(1.0, 0.66, 0.34)
+const FOG_COLOR := Color(0.022, 0.028, 0.04)
+const LAMP_COLOR := Color(1.0, 0.56, 0.24)
 const HALL := Vector3(88, 0, 120)
 
 const START_POINT := Vector3(0, 0, 21)
 const MANSION_DOOR := Vector3(76.6, 0, -48)
 const GRAFFITI := Vector3(-23.95, 2.2, -12)
-# Этапы, на которых игру можно сохранить. В остальные моменты идёт сценка,
-# и сохранение подождёт до её конца.
-const SAVE_STAGES := ["explore", "girl", "after_dead_end", "to_lot", "to_door", "at_door", "hall"]
 const GIRL_PATH := [
 	Vector3(20, 0, -22), Vector3(26, 0, -40), Vector3(16, 0, -62),
 	Vector3(30, 0, -80), Vector3(24, 0, -96),
@@ -56,8 +79,10 @@ var porch_light: OmniLight3D
 var environment: Environment
 var hall_phone: Node3D
 var hand_phone: Node3D
-var menu: CanvasLayer
-var mansion_lit := false
+var hands: Node
+var film_material: ShaderMaterial
+var sanity_meter = preload("res://scripts/sanity_meter.gd").new()
+var _sanity_hint_shown := false
 
 var checkpoint := START_POINT
 var shadow_spawn := Vector3(-20, 0, -16)
@@ -71,13 +96,24 @@ var shadow_seen := false
 var graffiti_seen := false
 
 var _materials := {}
-var _windows := {0: [], 1: [], 2: []}
+var _house_transforms: Array[Transform3D] = []
+var _normals := {
+	T_CONCRETE: preload("res://textures/stone_wall_n.png"),
+	T_ASPHALT: preload("res://textures/cobble_n.png"),
+	T_RUST: preload("res://textures/iron_n.png"),
+	T_WOOD: preload("res://textures/dark_wood_n.png"),
+	T_BRICK: preload("res://textures/rough_stone_n.png"),
+	T_TILES: preload("res://textures/marble_n.png"),
+	T_PLASTER: preload("res://textures/wallpaper_n.png"),
+}
 
 
 func _ready() -> void:
 	randomize()
 	_setup_input()
 	_setup_environment()
+	_use_night_sky()
+	_reset_shadow_atlas()
 
 	nav_region = NavigationRegion3D.new()
 	add_child(nav_region)
@@ -96,6 +132,14 @@ func _ready() -> void:
 	add_child(ui)
 	player.prompt_changed.connect(ui.set_prompt)
 
+	# Руки с инвентарём, который герой принёс из квартиры.
+	hands = preload("res://scripts/hands.gd").new()   # не константа: квартира уже объявляет HandsScript
+	hands.name = "Руки"
+	hands.player = player
+	hands.ui = ui
+	hands.area = LEVEL_AREA
+	add_child(hands)
+
 	hand_phone = HandPhoneScript.new()
 	hand_phone.visible = false
 	player.camera.add_child(hand_phone)
@@ -109,6 +153,11 @@ func _ready() -> void:
 	drone.set_mode("drone")
 	drone.level = 0.0
 	ui.sms_shown.connect(func(): beeper.set_mode("beep"))
+	var ambience = SynthScript.new()
+	player.camera.add_child(ambience)
+	ambience.set_mode("ambient")
+	ambience.level = 0.55
+	player.camera.add_child(_dust(40, Vector3(9, 4, 9)))
 
 	shadow = ShadowScript.new()
 	add_child(shadow)
@@ -116,26 +165,17 @@ func _ready() -> void:
 	shadow.caught.connect(_on_caught)
 
 	_spawn_wall_shadows()
-
-	menu = MenuScript.new()
-	add_child(menu)
-	get_tree().set_auto_accept_quit(false)
-
-	if SaveGame.continue_requested:
-		SaveGame.continue_requested = false
-		_restore(SaveGame.world_state())
-	elif SaveGame.has_save() and not SaveGame.new_requested:
-		_title_menu()
-	else:
-		SaveGame.new_requested = false
-		_start()
+	_start()
 
 
 func _process(delta: float) -> void:
 	var near: float = shadow.closeness()
-	ui.set_noise(near * near * 0.8)
 	drone.level = near * near
 	_update_light_rules()
+	var has_light: bool = shadow.waiting or (has_phone and hand_phone.light_on)
+	# Пока Тени нет или идёт сценка, темнота героя не трогает.
+	var dark: bool = shadow.active and not has_light and not player.locked
+	shadow.frenzy = _apply_sanity(delta, dark, near * near)
 	_update_comments(delta)
 
 	match stage:
@@ -150,24 +190,21 @@ func _process(delta: float) -> void:
 				ui.say(D.DOOR_SMS)
 
 
+func _apply_sanity(delta: float, dark: bool, near: float) -> float:
+	var sanity: float = sanity_meter.update(delta, dark, near)
+	ui.set_noise(sanity * 0.8)
+	player.sanity = sanity
+	film_material.set_shader_parameter("sanity", sanity)
+	ui.set_sanity(sanity, not player.locked)
+	if dark and sanity > 0.5 and not _sanity_hint_shown:
+		_sanity_hint_shown = true
+		ui.show_hint("В темноте его накрывает. Свет помогает.")
+	return sanity
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("flashlight") and has_phone and not player.locked:
 		hand_phone.toggle()
-	elif event.is_action_pressed("ui_cancel") and not menu.is_open and stage != "intro":
-		get_viewport().set_input_as_handled()
-		_pause_menu()
-	elif event.is_action_pressed("quick_save") and not menu.is_open:
-		_save("Игра сохранена.")
-	elif event.is_action_pressed("quick_load") and not menu.is_open and SaveGame.has_save():
-		SaveGame.continue_game()
-
-
-# Закрытие окна крестиком: сначала сохраняемся, если сейчас можно.
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST:
-		if can_save():
-			SaveGame.save_game(_world_state())
-		get_tree().quit()
 
 
 # Тень не любит свет: в луче фонарика почти замирает, а под горящим фонарём
@@ -222,11 +259,10 @@ func _comment(text: String) -> void:
 func _start() -> void:
 	player.locked = true
 	await get_tree().create_timer(0.8).timeout
-	await ui.say(D.PROLOGUE)
 	ui.show_title("МИР 1. ОДИНОЧЕСТВО\nОкраина города")
 	await ui.fade_to(0.0, 3.0)
 	player.locked = false
-	ui.show_hint("WASD — идти   Shift — бежать   E — действие   Esc — показать курсор")
+	ui.show_hint("WASD — идти   Shift — бежать   Пробел — прыжок   Ctrl — присесть   E — действие   Esc — пауза")
 	stage = "explore"
 	bench_phone.ringing = true
 
@@ -244,7 +280,6 @@ func _on_bench_phone() -> void:
 	girl.visible = true
 	girl_index = 0
 	stage = "girl"
-	_save()
 
 
 func _update_girl() -> void:
@@ -275,7 +310,6 @@ func _dead_end() -> void:
 	shadow.paused = false
 	busy = false
 	stage = "after_dead_end"
-	_save()
 	await get_tree().create_timer(2.0).timeout
 	_comment(D.SMS_AFTER_DEAD_END)
 
@@ -299,7 +333,6 @@ func _girl_talk() -> void:
 	busy = false
 	lot_phone.ringing = true
 	stage = "to_lot"
-	_save()
 
 
 func _on_lot_phone() -> void:
@@ -309,7 +342,6 @@ func _on_lot_phone() -> void:
 	shadow_spawn = Vector3(24, 0, -92)
 	door.enabled = true
 	stage = "to_door"
-	_save()
 
 
 func _on_door() -> void:
@@ -319,7 +351,6 @@ func _on_door() -> void:
 		await _scene(D.NOTE, MANSION_DOOR + Vector3(0, 1.5, 0))
 		door.prompt = "Войти"
 		door.enabled = true
-		_save()
 		return
 	busy = true
 	door.enabled = false
@@ -339,7 +370,6 @@ func _on_door() -> void:
 	player.locked = false
 	busy = false
 	hall_phone.ringing = true
-	_save()
 
 
 func _on_hall_phone() -> void:
@@ -350,155 +380,6 @@ func _on_hall_phone() -> void:
 	stage = "end"
 	await ui.fade_to(1.0, 2.5)
 	ui.show_title("Конец прототипа\nПродолжение следует", 1000.0)
-
-
-# ---------------------------------------------------------------- сохранение
-
-func can_save() -> bool:
-	return stage in SAVE_STAGES and not busy and not menu.is_open
-
-
-# Автосохранение на сюжетных точках и по F5. Если сейчас идёт сценка, молча пропускаем.
-func _save(hint := "") -> void:
-	if not can_save():
-		if hint != "":
-			ui.show_hint("Сейчас сохранить нельзя.", 3.0)
-		return
-	if SaveGame.save_game(_world_state()):
-		ui.show_hint(hint if hint != "" else "Сохранено.", 2.5)
-
-
-func _world_state() -> Dictionary:
-	return {
-		"world": "world1",
-		"stage": stage,
-		"checkpoint": checkpoint,
-		"shadow_spawn": shadow_spawn,
-		"shadow_position": shadow.global_position if shadow.active else shadow_spawn,
-		"has_phone": has_phone,
-		"battery": hand_phone.battery,
-		"shadow_seen": shadow_seen,
-		"graffiti_seen": graffiti_seen,
-		"girl_index": girl_index,
-		"door_prompt": door.prompt,
-		"door_enabled": door.enabled,
-		"mansion_lit": mansion_lit,
-		"player_position": player.global_position,
-		"player_yaw": player.rotation.y,
-		"camera_pitch": player.camera.rotation.x,
-	}
-
-
-# Восстановить Мир 1 из сохранения. Уровень уже построен, осталось расставить сюжет.
-func _restore(w: Dictionary) -> void:
-	if w.get("world", "") != "world1" or not (w.get("stage", "") in SAVE_STAGES):
-		_start()
-		return
-	player.locked = true
-	stage = "intro"   # пока восстанавливаемся, сюжет в _process не двигается
-	# Навигационная сетка появляется на следующем кадре физики, без неё Тень не поставить.
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-
-	checkpoint = w.get("checkpoint", checkpoint)
-	shadow_spawn = w.get("shadow_spawn", shadow_spawn)
-	shadow_seen = w.get("shadow_seen", false)
-	graffiti_seen = w.get("graffiti_seen", false)
-	girl_index = clampi(int(w.get("girl_index", 0)), 0, GIRL_PATH.size() - 1)
-	has_phone = w.get("has_phone", false)
-	if has_phone:
-		bench_phone.ringing = false
-		bench_phone.visible = false
-		hand_phone.visible = true
-		hand_phone.battery = clampf(float(w.get("battery", 1.0)), 0.0, 1.0)
-	else:
-		bench_phone.ringing = true
-	if w.get("mansion_lit", false):
-		_light_mansion()
-	door.prompt = w.get("door_prompt", door.prompt)
-	door.enabled = w.get("door_enabled", false)
-
-	var saved_stage: String = w.stage
-	match saved_stage:
-		"girl":
-			girl.position = GIRL_PATH[girl_index]
-			girl.visible = true
-		"to_lot":
-			lot_phone.ringing = true
-		"hall":
-			shadow.active = false
-			shadow.visible = false
-			_set_interior_lighting()
-			hall_phone.ringing = true
-
-	player.global_position = w.get("player_position", checkpoint)
-	player.rotation.y = float(w.get("player_yaw", 0.0))
-	player.camera.rotation.x = float(w.get("camera_pitch", 0.0))
-	player.velocity = Vector3.ZERO
-	# Остальные части игры (инвентарь и т. д.) восстанавливаются сами, см. scripts/save_game.gd.
-	SaveGame.apply_sections()
-
-	if has_phone and saved_stage != "hall":
-		# Тень возвращается туда, где была, но не ближе 15 м: игроку нужна фора после загрузки.
-		var at: Vector3 = w.get("shadow_position", shadow_spawn)
-		if at.distance_to(player.global_position) < 15.0:
-			at = shadow_spawn
-		shadow.activate(_nav_point(at))
-
-	await ui.fade_to(0.0, 1.5)
-	stage = saved_stage
-	player.locked = false
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	ui.show_hint("Продолжаем с сохранения.", 3.0)
-
-
-func _title_menu() -> void:
-	player.locked = true
-	var info: String = SaveGame.read().get("saved_at", "")
-	var status := ("Сохранение от " + info.replace("T", " ")) if info != "" else ""
-	while true:
-		var action: String = await menu.open("PSYCHO UNIVERSE", [
-			["continue", "Продолжить"],
-			["new", "Новая игра"],
-			["quit", "Выйти"],
-		], status)
-		match action:
-			"continue":
-				_restore(SaveGame.world_state())
-				return
-			"new":
-				_start()
-				return
-			"quit":
-				get_tree().quit()
-				return
-
-
-func _pause_menu() -> void:
-	get_tree().paused = true
-	var items := [["resume", "Вернуться в игру"]]
-	if can_save():
-		items.append(["save", "Сохранить"])
-	if SaveGame.has_save():
-		items.append(["load", "Загрузить сохранение"])
-	items.append(["new", "Новая игра"])
-	items.append(["quit", "Сохранить и выйти" if can_save() else "Выйти"])
-	var action: String = await menu.open("ПАУЗА", items, "F5 — быстрое сохранение   F9 — быстрая загрузка")
-	get_tree().paused = false
-	match action:
-		"resume":
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-		"save":
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-			_save("Игра сохранена.")
-		"load":
-			SaveGame.continue_game()
-		"new":
-			SaveGame.new_game()
-		"quit":
-			if can_save():
-				SaveGame.save_game(_world_state())
-			get_tree().quit()
 
 
 # Сценка: игрок замирает, Тень тоже, идут реплики.
@@ -541,10 +422,9 @@ func _light_mansion() -> void:
 	var m := ShaderMaterial.new()
 	m.shader = WINDOW_SHADER
 	m.set_shader_parameter("mode", 1)
-	m.set_shader_parameter("color", Color(1.0, 0.85, 0.6))
+	m.set_shader_parameter("color", Color(1.0, 0.68, 0.34))
 	mansion_windows.material_override = m
 	porch_light.visible = true
-	mansion_lit = true
 
 
 # ---------------------------------------------------------------- уровень
@@ -555,10 +435,12 @@ func _setup_input() -> void:
 	_add_action("move_left", [KEY_A, KEY_LEFT])
 	_add_action("move_right", [KEY_D, KEY_RIGHT])
 	_add_action("sprint", [KEY_SHIFT])
+	_add_action("crouch", [KEY_CTRL, KEY_C])
+	_add_action("jump", [KEY_SPACE])
 	_add_action("interact", [KEY_E])
 	_add_action("flashlight", [KEY_F])
-	_add_action("quick_save", [KEY_F5])
-	_add_action("quick_load", [KEY_F9])
+	_add_action("inventory", [KEY_TAB, KEY_I])
+	_add_action("store_item", [KEY_Q])
 
 
 func _add_action(action: String, keys: Array) -> void:
@@ -572,51 +454,133 @@ func _add_action(action: String, keys: Array) -> void:
 
 
 func _setup_environment() -> void:
+	Settings.load_once()
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = FOG_COLOR
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.55, 0.6, 0.7)
-	env.ambient_light_energy = 1.1
+	env.ambient_light_color = Color(0.3, 0.38, 0.55)
+	env.ambient_light_energy = 0.8
+	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 1.15
 	env.fog_enabled = true
 	env.fog_light_color = FOG_COLOR
-	env.fog_density = 0.06
+	env.fog_density = 0.055
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
 	environment = env
 
-	# Плёночный фильтр поверх 3D. Интерфейс (слой 1) рисуется уже поверх него.
+	# Постобработка поверх 3D. Интерфейс (слой 1) рисуется уже поверх неё.
 	var film_layer := CanvasLayer.new()
 	film_layer.layer = 0
 	var film := ColorRect.new()
 	film.set_anchors_preset(Control.PRESET_FULL_RECT)
 	film.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var film_mat := ShaderMaterial.new()
-	film_mat.shader = FILM_SHADER
-	film.material = film_mat
+	film_material = ShaderMaterial.new()
+	film_material.shader = FILM_SHADER
+	film_material.set_shader_parameter("brightness", Settings.brightness)
+	film.material = film_material
 	film_layer.add_child(film)
 	add_child(film_layer)
 
 
-# Свет и туман внутри особняка: светло, чисто, почти без тумана.
+# Тени ламп прошлой сцены остаются в общем хранилище теней и закрывают луч фонарика.
+# Пересоздание хранилища при входе в уровень это убирает.
+func _reset_shadow_atlas() -> void:
+	var viewport := get_viewport()
+	var size := viewport.positional_shadow_atlas_size
+	viewport.positional_shadow_atlas_size = 0
+	viewport.positional_shadow_atlas_size = size
+
+
+# Ночное небо вместо ровного фона: одно и то же в квартире и в Мире 1.
+func _use_night_sky() -> void:
+	var material := ShaderMaterial.new()
+	material.shader = NIGHT_SKY_SHADER
+	var sky := Sky.new()
+	sky.sky_material = material
+	sky.radiance_size = Sky.RADIANCE_SIZE_32
+	environment.sky = sky
+	environment.background_mode = Environment.BG_SKY
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED
+	environment.fog_sky_affect = 0.0
+
+
+# Свет и туман внутри особняка: тепло, чисто, почти без тумана, всё в свете люстры.
 func _set_interior_lighting() -> void:
-	environment.background_color = Color(0.85, 0.82, 0.74)
-	environment.fog_density = 0.008
-	environment.fog_light_color = Color(0.85, 0.82, 0.74)
-	environment.ambient_light_color = Color(1.0, 0.95, 0.85)
-	environment.ambient_light_energy = 0.6
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0.1, 0.07, 0.05)
+	environment.fog_density = 0.012
+	environment.fog_light_color = Color(0.1, 0.07, 0.05)
+	environment.ambient_light_color = Color(0.75, 0.55, 0.38)
+	environment.ambient_light_energy = 0.35
+
+
+# Пылинки, которые висят в воздухе вокруг камеры.
+func _dust(amount: int, area: Vector3) -> CPUParticles3D:
+	var dust := CPUParticles3D.new()
+	dust.amount = amount
+	dust.lifetime = 9.0
+	dust.preprocess = 9.0
+	dust.local_coords = false
+	dust.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	dust.emission_box_extents = area / 2.0
+	dust.direction = Vector3.UP
+	dust.spread = 180.0
+	dust.gravity = Vector3(0, -0.01, 0)
+	dust.initial_velocity_min = 0.02
+	dust.initial_velocity_max = 0.09
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.013, 0.013)
+	dust.mesh = quad
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+	m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	m.albedo_color = Color(0.5, 0.46, 0.38)
+	quad.material = m
+	dust.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	return dust
+
+
+# Живое пламя: язычок и, если задана яркость, дрожащий свет вокруг него.
+func _flame_at(pos: Vector3, size: float, energy := 0.0, light_range := 8.0) -> OmniLight3D:
+	var flame := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(size, size * 1.5)
+	flame.mesh = quad
+	flame.position = pos
+	flame.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var m := ShaderMaterial.new()
+	m.shader = FLAME_SHADER
+	m.set_shader_parameter("phase", randf() * 50.0)
+	flame.material_override = m
+	add_child(flame)
+	if energy <= 0.0:
+		return null
+	var light := FlameLightScript.new()
+	light.position = pos
+	light.omni_range = light_range
+	# затухание ближе к настоящему: яркое пятно у огня и быстрый уход в темноту
+	light.omni_attenuation = 1.8
+	light.light_energy = energy * 1.3
+	light.light_color = LAMP_COLOR
+	add_child(light)
+	return light
 
 
 func _material(color: Color, emission := Color.BLACK, tex: Texture2D = null, scale := 0.333) -> ShaderMaterial:
 	var key := [color, emission, tex, scale]
 	if not _materials.has(key):
 		var m := ShaderMaterial.new()
-		m.shader = PS1_SHADER
+		m.shader = STONE_SHADER
 		m.set_shader_parameter("albedo", color)
 		m.set_shader_parameter("emission", emission)
 		if tex != null:
 			m.set_shader_parameter("tex", tex)
+			if _normals.has(tex):
+				m.set_shader_parameter("tex_normal", _normals[tex])
 		m.set_shader_parameter("tex_scale", scale)
 		_materials[key] = m
 	return _materials[key]
@@ -653,45 +617,43 @@ func _wall(pos: Vector3, size: Vector3) -> void:
 	nav_region.add_child(body)
 
 
-# Панелька: коробка + окна на всех четырёх сторонах.
+# Панельный дом: модель повторяется вдоль длинной стороны, столкновения остаются простой коробкой.
 func _building(center: Vector3, size: Vector3) -> void:
-	_box(center + Vector3(0, size.y / 2, 0), size, WALL_COLOR, Vector3.ZERO, T_CONCRETE)
-	var floors := int(size.y / 3.0)
-	var half := size / 2.0
-	var faces := [
-		[Vector3(0, 0, 1), Vector3(1, 0, 0), size.x, half.z, 0.0],
-		[Vector3(0, 0, -1), Vector3(1, 0, 0), size.x, half.z, PI],
-		[Vector3(1, 0, 0), Vector3(0, 0, 1), size.z, half.x, PI / 2],
-		[Vector3(-1, 0, 0), Vector3(0, 0, 1), size.z, half.x, -PI / 2],
-	]
-	for face in faces:
-		var normal: Vector3 = face[0]
-		var along: Vector3 = face[1]
-		var length: float = face[2]
-		var depth: float = face[3]
-		var cols := int((length - 2.0) / 3.5)
-		for f in floors:
-			for c in cols:
-				var offset := -length / 2.0 + 2.0 + c * 3.5 + 0.75
-				var pos := center + normal * (depth + 0.03) + along * offset + Vector3(0, 1.8 + f * 3.0, 0)
-				var r := randf()
-				var mode := 1 if r < 0.12 else (2 if r < 0.15 else 0)
-				_windows[mode].append(Transform3D(Basis(Vector3.UP, face[4]), pos))
+	_wall(center + Vector3(0, size.y / 2, 0), size)
+	var along_x := size.x >= size.z
+	var length := size.x if along_x else size.z
+	var depth := size.z if along_x else size.x
+	var along := Vector3.RIGHT if along_x else Vector3.BACK
+	var bounds: AABB = HOUSE_MESH.get_aabb()
+	var count := maxi(1, roundi(length / HOUSE_SEGMENT))
+	var segment := length / count
+	var yaw := 0.0 if along_x else PI / 2
+	var basis := Basis(Vector3.UP, yaw) * Basis.from_scale(Vector3(segment / bounds.size.x, size.y / bounds.size.y, depth / bounds.size.z))
+	var model_base := Vector3(bounds.get_center().x, bounds.position.y, bounds.get_center().z)
+	for i in count:
+		var pos := center + along * (-length / 2.0 + segment * (i + 0.5))
+		_house_transforms.append(Transform3D(basis, pos - basis * model_base))
 
 
-func _build_windows() -> void:
-	var colors := {0: Color(0.08, 0.09, 0.11), 1: Color(1.0, 0.78, 0.5), 2: Color(0.45, 0.6, 1.0)}
-	for mode in _windows:
-		var mmi := _window_multimesh(_windows[mode])
-		var m := ShaderMaterial.new()
-		m.shader = WINDOW_SHADER
-		m.set_shader_parameter("mode", mode)
-		m.set_shader_parameter("color", colors[mode])
-		mmi.material_override = m
-		add_child(mmi)
+# Все дома рисуются одним вызовом: так город почти ничего не стоит видеокарте.
+func _build_windows(origin_offset := Vector3.ZERO) -> void:
+	var material := ShaderMaterial.new()
+	material.shader = HOUSE_SHADER
+	material.set_shader_parameter("tex", HOUSE_TEXTURE)
+	material.set_shader_parameter("origin_offset", origin_offset)
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.mesh = HOUSE_MESH
+	mm.instance_count = _house_transforms.size()
+	for i in _house_transforms.size():
+		mm.set_instance_transform(i, _house_transforms[i])
+	var houses := MultiMeshInstance3D.new()
+	houses.multimesh = mm
+	houses.material_override = material
+	houses.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(houses)
 
 
-# Все окна одного типа рисуются одним вызовом: так город почти ничего не стоит видеокарте.
 func _window_multimesh(transforms: Array) -> MultiMeshInstance3D:
 	var quad := QuadMesh.new()
 	quad.size = Vector2(1.3, 1.5)
@@ -708,23 +670,20 @@ func _window_multimesh(transforms: Array) -> MultiMeshInstance3D:
 
 
 func _lamp(pos: Vector3) -> OmniLight3D:
-	_box(Vector3(pos.x, pos.y / 2, pos.z), Vector3(0.15, pos.y, 0.15), Color(0.5, 0.5, 0.5), Vector3.ZERO, T_RUST, 1.0)
+	_box(Vector3(pos.x, (pos.y - 0.33) / 2, pos.z), Vector3(0.12, pos.y - 0.33, 0.12), Color(0.5, 0.5, 0.5), Vector3.ZERO, T_RUST, 1.0)
+	_box(pos - Vector3(0, 0.33, 0), Vector3(0.5, 0.04, 0.5), Color(0.4, 0.4, 0.4), Vector3.ZERO, T_RUST, 1.0)
 	_box(pos + Vector3(0, 0.15, 0), Vector3(0.6, 0.12, 0.6), Color(0.35, 0.35, 0.35), Vector3.ZERO, T_RUST, 1.0)
-	var bulb := MeshInstance3D.new()
-	var bulb_mesh := BoxMesh.new()
-	bulb_mesh.size = Vector3(0.2, 0.12, 0.2)
-	bulb.mesh = bulb_mesh
-	bulb.position = pos + Vector3(0, 0.03, 0)
-	bulb.material_override = _material(Color.BLACK, LAMP_COLOR * 2.0)
-	add_child(bulb)
+	# кованые стойки фонаря вокруг огня
+	for corner in [Vector3(-0.22, 0, -0.22), Vector3(0.22, 0, -0.22), Vector3(-0.22, 0, 0.22), Vector3(0.22, 0, 0.22)]:
+		var bar := MeshInstance3D.new()
+		var bar_mesh := BoxMesh.new()
+		bar_mesh.size = Vector3(0.025, 0.45, 0.025)
+		bar.mesh = bar_mesh
+		bar.position = pos + corner - Vector3(0, 0.1, 0)
+		bar.material_override = _material(Color(0.5, 0.5, 0.5), Color.BLACK, T_RUST, 1.0)
+		add_child(bar)
 	lamp_points.append(pos)
-	var light := OmniLight3D.new()
-	light.position = pos - Vector3(0, 0.2, 0)
-	light.omni_range = 15.0
-	light.light_energy = 6.0
-	light.light_color = LAMP_COLOR
-	add_child(light)
-	return light
+	return _flame_at(pos - Vector3(0, 0.12, 0), 0.26, 7.5, 16.0)
 
 
 # «Пропал человек»: листок с фото, лицо на котором стёрто от того, что его часто трогали.
@@ -759,7 +718,7 @@ func _poster(pos: Vector3, yaw: float, tilt := 0.0) -> void:
 		l.font_size = line[2]
 		l.pixel_size = 0.003
 		l.modulate = Color(0.12, 0.1, 0.1)
-		l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 		l.position = line[1]
 		root.add_child(l)
 
@@ -786,17 +745,93 @@ func _socket(pos: Vector3, yaw: float) -> void:
 	add_child(area)
 
 
-func _car(pos: Vector3, yaw: float, color: Color) -> void:
-	_box(pos + Vector3(0, 0.55, 0), Vector3(1.8, 0.8, 4.2), color, Vector3(0, yaw, 0))
-	_box(pos + Vector3(0, 1.2, 0).rotated(Vector3.UP, yaw), Vector3(1.6, 0.6, 2.2), color.darkened(0.2), Vector3(0, yaw, 0))
+func _car(pos: Vector3, yaw: float, tint: Color) -> void:
+	# ржавый кузов, от краски остался только оттенок
+	var color := tint.lerp(Color(0.5, 0.48, 0.45), 0.6)
+	var index: int = hash(pos) % CAR_MODELS.size()
+	var target: Vector3 = CAR_SIZES[index]
+	var car: Node3D = CAR_MODELS[index].instantiate()
+	nav_region.add_child(car)
+	for mesh in car.find_children("*", "MeshInstance3D", true, false):
+		for s in mesh.mesh.get_surface_count():
+			var paint: StandardMaterial3D = mesh.mesh.surface_get_material(s).duplicate()
+			paint.albedo_color = color
+			paint.roughness = 1.0
+			paint.metallic = 0.0
+			mesh.set_surface_override_material(s, paint)
+	_fit_car(car, target)
+	car.position = pos
+	car.rotation = Vector3(0, yaw, (hash(pos) % 7 - 3) * 0.004)   # чуть завален на одно колесо, одинаково в окне и во дворе
+	car.add_child(_contact_shadow(target))
+
+	var body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box_shape := BoxShape3D.new()
+	box_shape.size = target
+	shape.shape = box_shape
+	body.add_child(shape)
+	body.position = pos + Vector3(0, target.y / 2.0, 0)
+	body.rotation.y = yaw
+	nav_region.add_child(body)
 
 
-func _build_courtyard() -> void:
+# Кузов растягивается до настоящих габаритов отдельно по осям, колёса — одинаково по всем
+# осям, чтобы остались круглыми, и встают в те же арки.
+func _fit_car(car: Node3D, target: Vector3) -> void:
+	var body: MeshInstance3D = null
+	var wheels: Array[MeshInstance3D] = []
+	for child in car.get_children():
+		if child is MeshInstance3D:
+			if String(child.name).begins_with("wheel"):
+				wheels.append(child)
+			elif String(child.name) == "body":
+				body = child
+	if body == null:
+		return
+	var box: AABB = body.get_aabb()
+	var wheel_scale := WHEEL_RADIUS / KENNEY_WHEEL_RADIUS
+	var bottom: float = (body.position.y + box.position.y) * wheel_scale - CAR_SAG
+	var stretch := Vector3(target.x / box.size.x, (target.y - bottom) / box.size.y, target.z / box.size.z)
+	body.scale = stretch
+	body.position = Vector3(body.position.x * stretch.x, bottom - box.position.y * stretch.y, body.position.z * stretch.z)
+	for wheel in wheels:
+		wheel.scale = Vector3.ONE * wheel_scale
+		wheel.position = Vector3(wheel.position.x * stretch.x, WHEEL_RADIUS - CAR_SAG, wheel.position.z * stretch.z)
+
+
+# Тёмное пятно под машиной: теней на улице нет, и без него машина висит над асфальтом.
+func _contact_shadow(size: Vector3) -> MeshInstance3D:
+	var quad := PlaneMesh.new()
+	quad.size = Vector2(size.x + 0.5, size.z + 0.7)
+	var gradient := Gradient.new()
+	gradient.set_color(0, Color(0, 0, 0, 0.85))
+	gradient.set_color(1, Color(0, 0, 0, 0.0))
+	var texture := GradientTexture2D.new()
+	texture.gradient = gradient
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.albedo_texture = texture
+	var blob := MeshInstance3D.new()
+	blob.name = "Тень_под_машиной"
+	blob.mesh = quad
+	blob.material_override = material
+	blob.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	blob.position.y = 0.015
+	return blob
+
+
+# with_home = false нужен виду из окна: дом ГГ заслонил бы квартиру.
+func _build_courtyard(with_home := true) -> void:
 	# Земля кусками по 30 м: в лёгком рендере у каждого куска свои ближайшие фонари.
 	for gx in range(-45, 115, 30):
 		for gz in range(-120, 45, 30):
-			_box(Vector3(gx + 15, -0.5, gz + 15), Vector3(30, 1, 30), Color(0.9, 0.9, 0.9), Vector3.ZERO, T_ASPHALT, 0.5)
-	_building(Vector3(0, 0, 30), Vector3(60, 27, 12))
+			_box(Vector3(gx + 15, -0.5, gz + 15), Vector3(30, 1, 30), Color(0.95, 0.95, 0.95), Vector3.ZERO, T_ASPHALT, 0.6)
+	if with_home:
+		_building(Vector3(0, 0, 30), Vector3(60, 27, 12))
 	_building(Vector3(-10, 0, -30), Vector3(52, 27, 12))
 	_building(Vector3(-30, 0, 0), Vector3(12, 27, 48))
 	_building(Vector3(30, 0, 6), Vector3(12, 27, 36))
@@ -847,7 +882,7 @@ func _build_courtyard() -> void:
 	graffiti.font_size = 96
 	graffiti.pixel_size = 0.012
 	graffiti.modulate = Color(0.75, 0.12, 0.1)
-	graffiti.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	graffiti.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	graffiti.position = GRAFFITI
 	graffiti.rotation.y = PI / 2
 	graffiti.rotation.z = 0.06
@@ -956,8 +991,8 @@ func _build_lot() -> void:
 func _build_hall() -> void:
 	var c := HALL
 	var white := Color(1, 1, 1)
-	_box(c + Vector3(0, -0.5, 0), Vector3(18, 1, 22), white, Vector3.ZERO, T_TILES, 1.0)
-	_box(c + Vector3(0, 7.5, 0), Vector3(18, 1, 22), Color(0.95, 0.93, 0.88))
+	_box(c + Vector3(0, -0.5, 0), Vector3(18, 1, 22), Color(0.72, 0.72, 0.72), Vector3.ZERO, T_TILES, 1.0)
+	_box(c + Vector3(0, 7.5, 0), Vector3(18, 1, 22), Color(0.6, 0.6, 0.6), Vector3.ZERO, T_WOOD, 0.5)
 	_box(c + Vector3(-9.5, 3.5, 0), Vector3(1, 7, 22), white, Vector3.ZERO, T_PLASTER)
 	_box(c + Vector3(9.5, 3.5, 0), Vector3(1, 7, 22), white, Vector3.ZERO, T_PLASTER)
 	_box(c + Vector3(0, 3.5, -11.5), Vector3(18, 7, 1), white, Vector3.ZERO, T_PLASTER)
@@ -976,7 +1011,7 @@ func _build_hall() -> void:
 			_box(c + Vector3(side * 8.95, 1.3, z), Vector3(0.15, 2.6, 1.4), Color(0.75, 0.6, 0.5), Vector3.ZERO, T_WOOD, 1.0)
 
 	# ковёр и тумбочка с телефоном
-	_box(c + Vector3(0, 0.01, 4), Vector3(3, 0.02, 9), Color(0.55, 0.12, 0.14))
+	_box(c + Vector3(0, 0.01, 4), Vector3(3, 0.02, 9), Color(0.2, 0.035, 0.04))
 	_box(c + Vector3(5, 0.45, 6), Vector3(1.2, 0.9, 0.6), Color(0.8, 0.7, 0.6), Vector3.ZERO, T_WOOD, 1.0)
 	hall_phone = PhoneScript.new()
 	hall_phone.position = c + Vector3(5, 0.91, 6)
@@ -991,14 +1026,18 @@ func _build_hall() -> void:
 	lamp_mesh.size = Vector3(1.2, 0.4, 1.2)
 	chandelier.mesh = lamp_mesh
 	chandelier.position = c + Vector3(0, 6.2, 2)
-	chandelier.material_override = _material(Color.BLACK, Color(1.0, 0.9, 0.7) * 1.5)
+	chandelier.material_override = _material(Color(0.1, 0.09, 0.08), Color.BLACK, T_RUST, 1.0)
 	add_child(chandelier)
+	# свечи на люстре
+	for offset in [Vector3(-0.7, 0, -0.7), Vector3(0.7, 0, -0.7), Vector3(-0.7, 0, 0.7), Vector3(0.7, 0, 0.7)]:
+		_flame_at(c + Vector3(0, 6.48, 2) + offset, 0.18)
 	for pos in [Vector3(0, 5.5, 2), Vector3(0, 5.5, -6)]:
-		var light := OmniLight3D.new()
+		var light := FlameLightScript.new()
 		light.position = c + pos
-		light.omni_range = 16.0
-		light.light_energy = 1.4
-		light.light_color = Color(1.0, 0.92, 0.78)
+		light.omni_range = 17.0
+		light.omni_attenuation = 1.2
+		light.light_energy = 3.2
+		light.light_color = Color(1.0, 0.68, 0.38)
 		add_child(light)
 
 

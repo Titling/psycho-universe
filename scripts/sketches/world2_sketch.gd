@@ -128,7 +128,7 @@ func _book(pos: Vector3, yaw: float, title: String, empty := false) -> Node3D:
 		l.pixel_size = 0.0045
 		l.outline_size = 0
 		l.modulate = Color(0.15, 0.13, 0.12)
-		l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+		l.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 		l.position = Vector3(0, 0.55, 0.36)
 		root.add_child(l)
 	return book
@@ -298,7 +298,7 @@ func _build_letters() -> void:
 	quad.size = Vector2(0.22, 0.28)
 	var mat := StandardMaterial3D.new()
 	mat.albedo_texture = T_PAPER
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_NEAREST
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var transforms := []
 	for i in 50:
