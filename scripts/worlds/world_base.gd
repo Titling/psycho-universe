@@ -27,6 +27,7 @@ var ui: CanvasLayer
 var hands: Node
 var exit: Area3D
 var _leaving := false
+var _ready_to_save := false
 
 
 func _ready() -> void:
@@ -57,7 +58,11 @@ func _ready() -> void:
 		film.material.set_shader_parameter("brightness", Settings.brightness)
 
 	_setup_exit()
-	_intro()
+	var saved: Dictionary = SaveGame.take_continue(world_name())
+	if saved.is_empty():
+		_intro()
+	else:
+		_restore(saved)
 
 
 func _intro() -> void:
@@ -69,7 +74,10 @@ func _intro() -> void:
 	if not lines.is_empty():
 		await ui.say(lines)
 	player.locked = false
-	ui.show_hint("WASD — идти   Shift — бежать   Пробел — прыжок   Ctrl — присесть   E — действие   Tab — инвентарь   Esc — пауза")
+	_ready_to_save = true
+	ui.show_hint("WASD — идти   Shift — бежать   Пробел — прыжок   Ctrl — присесть   E — действие   Tab — инвентарь   F5 — сохранить   Esc — пауза")
+	# Новый мир — новая точка сохранения: «Продолжить» в меню теперь ведёт сюда.
+	_save()
 
 
 # Выход из мира: зона на маркере Exit, на неё можно навести взгляд и нажать E.
@@ -89,6 +97,7 @@ func _leave() -> void:
 	if _leaving:
 		return
 	_leaving = true
+	_ready_to_save = false
 	exit.enabled = false
 	player.locked = true
 	ui.set_prompt("")
@@ -106,6 +115,65 @@ func _leave() -> void:
 	get_tree().change_scene_to_file(next_scene)
 
 
+# ---------------------------------------------------------------- сохранение
+# Тот же порядок, что в main.gd: can_save(), _world_state(), _restore(). Инвентарь сохраняет узел hands.
+
+# Имя мира в сохранении: имя файла сцены, например "world2".
+func world_name() -> String:
+	return scene_file_path.get_file().get_basename()
+
+
+func can_save() -> bool:
+	return _ready_to_save and not player.locked and not ui.talking and not get_tree().paused
+
+
+func _save(hint := "") -> void:
+	if not can_save():
+		if hint != "":
+			ui.show_hint("Сейчас сохранить нельзя.", 3.0)
+		return
+	if SaveGame.save_game(_world_state()):
+		ui.show_hint(hint if hint != "" else "Сохранено.", 2.5)
+
+
+func _world_state() -> Dictionary:
+	return {
+		"world": world_name(),
+		"player_position": player.global_position,
+		"player_yaw": player.rotation.y,
+		"camera_pitch": player.camera.rotation.x,
+	}
+
+
+func _restore(w: Dictionary) -> void:
+	player.locked = true
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	player.global_position = w.get("player_position", player.global_position)
+	player.rotation.y = float(w.get("player_yaw", player.rotation.y))
+	player.camera.rotation.x = float(w.get("camera_pitch", 0.0))
+	player.velocity = Vector3.ZERO
+	SaveGame.apply_sections()
+	await ui.fade_to(0.0, 1.5)
+	player.locked = false
+	_ready_to_save = true
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	ui.show_hint("Продолжаем с сохранения.", 3.0)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("quick_save"):
+		_save("Игра сохранена.")
+	elif event.is_action_pressed("quick_load") and SaveGame.has_save():
+		SaveGame.continue_game()
+
+
+# Закрытие окна крестиком: сначала сохраняемся, если сейчас можно.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and is_inside_tree() and can_save():
+		SaveGame.save_game(_world_state())
+
+
 # Те же клавиши, что и в Мире 1, чтобы сцену можно было запускать отдельно (F6).
 func _setup_input() -> void:
 	_add_action("move_forward", [KEY_W, KEY_UP])
@@ -119,6 +187,8 @@ func _setup_input() -> void:
 	_add_action("flashlight", [KEY_F])
 	_add_action("inventory", [KEY_TAB, KEY_I])
 	_add_action("store_item", [KEY_Q])
+	_add_action("quick_save", [KEY_F5])
+	_add_action("quick_load", [KEY_F9])
 
 
 func _add_action(action: String, keys: Array) -> void:
