@@ -243,7 +243,7 @@ func open_inventory(items: Array, capacity: int, hands_full: bool, on_pick: Call
 	for i in capacity:
 		var slot := Button.new()
 		slot.custom_minimum_size = Vector2(SLOT_SIZE, SLOT_SIZE)
-		slot.focus_mode = Control.FOCUS_NONE
+		slot.focus_mode = Control.FOCUS_ALL
 		slot.expand_icon = true
 		slot.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var normal := _box(Color(0.1, 0.09, 0.09, 0.9))
@@ -254,8 +254,10 @@ func open_inventory(items: Array, capacity: int, hands_full: bool, on_pick: Call
 		slot.add_theme_stylebox_override("disabled", normal)
 		slot.add_theme_stylebox_override("hover", hover)
 		slot.add_theme_stylebox_override("pressed", hover)
+		slot.add_theme_stylebox_override("focus", hover)   # выбран геймпадом
 		if i >= items.size():
 			slot.disabled = true
+			slot.focus_mode = Control.FOCUS_NONE
 			_inventory_grid.add_child(slot)
 			continue
 		var item: Node = items[i]

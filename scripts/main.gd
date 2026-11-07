@@ -583,6 +583,8 @@ func _setup_input() -> void:
 	_add_action("store_item", [KEY_Q])
 	_add_action("quick_save", [KEY_F5])
 	_add_action("quick_load", [KEY_F9])
+	_add_action("throw", [])   # ЛКМ обрабатывают руки сами, здесь только геймпад
+	Gamepad.bind()
 
 
 func _add_action(action: String, keys: Array) -> void:

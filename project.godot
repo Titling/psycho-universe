@@ -19,6 +19,7 @@ config/features=PackedStringArray("4.3", "GL Compatibility")
 
 LightLOD="*res://scripts/light_lod.gd"
 SaveGame="*res://scripts/save_game.gd"
+Gamepad="*res://scripts/gamepad.gd"
 
 [display]
 

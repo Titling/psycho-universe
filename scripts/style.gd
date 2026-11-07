@@ -30,7 +30,9 @@ static func menu_button(text: String, size := 30) -> Button:
 	b.text = text
 	b.flat = true
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.focus_mode = Control.FOCUS_NONE
+	b.focus_mode = Control.FOCUS_ALL   # чтобы по меню можно было ходить геймпадом, см. gamepad.gd
+	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	b.add_theme_color_override("font_focus_color", EMBER)
 	b.add_theme_font_override("font", serif())
 	b.add_theme_font_size_override("font_size", size)
 	b.add_theme_color_override("font_color", DIM)

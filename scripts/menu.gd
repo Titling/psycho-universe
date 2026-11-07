@@ -294,7 +294,7 @@ func _slider(title: String, low: float, high: float, value: float, changed: Call
 	slider.max_value = high
 	slider.step = 0.01
 	slider.value = value
-	slider.focus_mode = Control.FOCUS_NONE
+	slider.focus_mode = Control.FOCUS_ALL   # геймпад: влево-вправо двигает ползунок
 	slider.modulate = Color(0.75, 0.68, 0.55)
 	slider.value_changed.connect(changed)
 	box.add_child(slider)

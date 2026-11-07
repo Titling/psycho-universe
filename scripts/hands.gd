@@ -87,7 +87,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("interact"):
 		release()
 		get_viewport().set_input_as_handled()
-	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+	elif (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT) \
+			or (InputMap.has_action("throw") and event.is_action_pressed("throw")):
 		var item := held
 		release()
 		item.linear_velocity = -player.camera.global_basis.z * THROW_SPEED

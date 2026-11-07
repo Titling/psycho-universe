@@ -91,6 +91,11 @@ func toggle_crouch() -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if not locked:
+		var turn: Vector2 = Gamepad.look(delta, Settings.sensitivity)
+		if turn != Vector2.ZERO:
+			rotate_y(-turn.x)
+			camera.rotation.x = clampf(camera.rotation.x - turn.y, -1.4, 1.4)
 	if not is_on_floor():
 		velocity.y -= 9.8 * delta
 	elif Input.is_action_just_pressed("jump") and not locked and not crouching:
